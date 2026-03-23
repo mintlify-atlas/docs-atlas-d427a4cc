@@ -54,7 +54,7 @@ let data = await incidentformModel.find(
   </Step>
 
   <Step title="Bank officer reviews the de-freeze queue">
-    The bank dashboard's de-freeze view fetches all court-approved cases with `bankbool: true` that have not yet received a `defreezestatus`. The officer reviews the case details including complaint information, transaction amounts, and court decision.
+    The bank dashboard's de-freeze view (`GET /formupload/downloadformsnotverifyfordefreeze`) fetches all court-approved cases with `bankbool: true`. The officer reviews the case details including complaint information, transaction amounts, and court decision. Cases already processed (with `defreezestatus` set) also appear here; use the de-freeze history view to see only completed cases.
   </Step>
 
   <Step title="Bank officer submits a de-freeze decision">

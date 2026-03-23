@@ -176,7 +176,7 @@ On success, the UI displays an `Uploaded Successfully` alert.
 
 ## Backend ML check
 
-Immediately after receiving the complaint, the backend forwards the data to the phishing detection Flask server before saving the record:
+Immediately after receiving the complaint, the backend forwards the full complaint data to the Flask ML server at port 5000 before saving the record:
 
 ```javascript uploadform.js
 let get = await fetch("http://127.0.0.1:5000/predict", {
@@ -189,4 +189,8 @@ data = { ...data, ...responseData };
 await incidentformModel.create(data);
 ```
 
-The ML server returns a `legitment` field (`"Spam mail"` or `"Ham mail"`) which is merged into the complaint record before it is saved to MongoDB. See [Fraud detection](/features/fraud-detection) for details on both ML models.
+The ML server's response is merged into the complaint data object before `incidentformModel.create` is called. The `legitment` field returned by the server is stored directly on the complaint document.
+
+<Note>
+  The backend calls the single `/predict` endpoint at `http://127.0.0.1:5000`. Depending on which Flask server is running on that port, the `legitment` value will be either `"Spam mail"`/`"Ham mail"` (phishing detector) or `"true"`/`"false"` (fraud legitimacy scorer). See [ML models overview](/ml/overview) for details on both services and the port conflict between them.
+</Note>

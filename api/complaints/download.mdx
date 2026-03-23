@@ -70,11 +70,26 @@ An array of `incidentform` documents. Each document has the following fields:
   Bank transaction details. Present when `bankbool` is `true`.
 
   <Expandable title="properties">
-    <ResponseField name="bank.amount" type="number">
-      The fraudulent amount in Indian Rupees (INR).
-    </ResponseField>
-    <ResponseField name="bank.name" type="string">
+    <ResponseField name="bank.bankname" type="string">
       The name of the bank or financial institution involved.
+    </ResponseField>
+    <ResponseField name="bank.ifsc" type="string">
+      IFSC code of the bank branch.
+    </ResponseField>
+    <ResponseField name="bank.accno" type="number">
+      Victim's bank account number.
+    </ResponseField>
+    <ResponseField name="bank.transactionID" type="number">
+      Transaction ID or UTR number of the fraudulent transaction.
+    </ResponseField>
+    <ResponseField name="bank.amount" type="string">
+      The fraudulent amount transferred.
+    </ResponseField>
+    <ResponseField name="bank.refno" type="number">
+      Reference number of the transaction.
+    </ResponseField>
+    <ResponseField name="bank.date" type="string">
+      Date of the fraudulent transaction.
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -262,10 +277,10 @@ if (record && record.proof) {
     "email": "victim@example.com",
     "type": "UPI Fraud",
     "category": "Online Financial Fraud",
-    "subcategory": "UPI-Related Frauds",
+    "subcategory": "UPI Related Frauds",
     "delay": false,
     "bankbool": true,
-    "bank": { "amount": 15000, "name": "State Bank of India" },
+    "bank": { "bankname": "State Bank of India", "amount": "15000" },
     "date": "2024-03-14T00:00:00.000Z",
     "incidentoccur": "WhatsApp",
     "whereid": "+91 98765 43210",

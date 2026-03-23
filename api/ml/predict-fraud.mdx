@@ -6,16 +6,16 @@ description: 'Predict whether a cybercrime complaint is legitimate using an XGBo
 ## Request
 
 **Method:** `POST`  
-**Base URL:** `http://localhost:5001`  
+**Base URL:** `http://localhost:5000` (default — see port conflict note below)  
 **Path:** `/predict`
 
 <Note>
-  This endpoint is served by the internal Flask ML server (`flask2.py`). It runs on the default Flask development port (`5001` when `debug=True` and port is not specified, or `5000` if nothing else is bound — verify against your deployment). It is called from within the platform backend and is not exposed publicly.
+  This endpoint is served by the internal Flask ML server (`flask2.py`). It is called from within the platform backend and is not exposed publicly.
 </Note>
 
-<Tip>
-  `flask2.py` calls `app.run(debug=True)` without specifying a port, so Flask defaults to port `5000`. If `flaskserver.py` (phishing detection) is also running on port `5000`, you must configure one of the two servers to use a different port before deploying both together.
-</Tip>
+<Warning>
+  `flask2.py` calls `app.run(debug=True)` without specifying a port, so Flask defaults to port `5000` — the same port used by `flaskserver.py` (the phishing detector). You must configure one of the two servers to run on a different port (e.g., `app.run(debug=True, port=5001)`) before running both simultaneously.
+</Warning>
 
 ### Body parameters
 
@@ -104,7 +104,7 @@ All responses return HTTP `200` with a JSON body.
 
 ```bash cURL — with bank amount
 curl --request POST \
-  --url http://localhost:5001/predict \
+  --url http://localhost:5000/predict \
   --header 'Content-Type: application/json' \
   --data '{
     "applicationNo": 284,
@@ -121,7 +121,7 @@ curl --request POST \
 import requests
 
 response = requests.post(
-    'http://localhost:5001/predict',
+    'http://localhost:5000/predict',
     json={
         'applicationNo': 284,
         'email': 'divya.verma@example.com',
@@ -143,14 +143,14 @@ print(response.json())
 
 ```bash cURL — without bank amount
 curl --request POST \
-  --url http://localhost:5001/predict \
+  --url http://localhost:5000/predict \
   --header 'Content-Type: application/json' \
   --data '{
     "applicationNo": 285,
     "email": "raju.sharma@example.com",
     "date": "2026-02-10 09:30:00",
-    "subcategory": "Online Job Fraud",
-    "description": "I was promised a job abroad and paid a registration fee, but the company was fake.",
+    "subcategory": "Fraud Call/Vishing",
+    "description": "I received a call from someone claiming to be from my bank asking me to share my OTP.",
     "bankbool": false
   }'
 ```
@@ -159,13 +159,13 @@ curl --request POST \
 import requests
 
 response = requests.post(
-    'http://localhost:5001/predict',
+    'http://localhost:5000/predict',
     json={
         'applicationNo': 285,
         'email': 'raju.sharma@example.com',
         'date': '2026-02-10 09:30:00',
-        'subcategory': 'Online Job Fraud',
-        'description': 'I was promised a job abroad and paid a registration fee, but the company was fake.',
+        'subcategory': 'Fraud Call/Vishing',
+        'description': 'I received a call from someone claiming to be from my bank asking me to share my OTP.',
         'bankbool': False,
     }
 )

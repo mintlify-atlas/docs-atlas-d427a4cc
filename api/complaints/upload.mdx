@@ -27,14 +27,14 @@ description: 'Submit a new cybercrime complaint to the CyberCrew 1930 Helpline P
 <ParamField body="subcategory" type="string" required>
   The specific type of financial fraud. One of:
 
-  - `"Online Banking, Credit/Debit Card & Sim Swap Fraud"`
+  - `"Aadhar Enabled Payment System (AEPS)"`
   - `"Business Email Compromise/Email Takeover"`
+  - `"Debit/Credit Card Fraud/Sim Swap Fraud"`
+  - `"Demat/Depository Fraud"`
   - `"E-Wallet Related Fraud"`
   - `"Fraud Call/Vishing"`
-  - `"Demat/Depository Fraud"`
-  - `"Online Job Fraud"`
-  - `"Online Matrimonial Fraud"`
-  - `"UPI-Related Frauds"`
+  - `"Internet Banking Related Fraud"`
+  - `"UPI Related Frauds"`
 </ParamField>
 
 <ParamField body="delay" type="string" required>
@@ -49,12 +49,26 @@ description: 'Submit a new cybercrime complaint to the CyberCrew 1930 Helpline P
   Bank transaction details. Required when `bankbool` is `"yes"`.
 
   <Expandable title="properties">
-    <ParamField body="bank.amount" type="number" required>
-      The fraudulent amount transferred, in Indian Rupees (INR).
-    </ParamField>
-
-    <ParamField body="bank.name" type="string" required>
+    <ParamField body="bank.bankname" type="string">
       The name of the bank or financial institution involved.
+    </ParamField>
+    <ParamField body="bank.ifsc" type="string">
+      The IFSC code of the bank branch.
+    </ParamField>
+    <ParamField body="bank.accno" type="number">
+      The victim's bank account number.
+    </ParamField>
+    <ParamField body="bank.transactionID" type="number">
+      The transaction ID or UTR number of the fraudulent transaction.
+    </ParamField>
+    <ParamField body="bank.amount" type="string">
+      The fraudulent amount transferred.
+    </ParamField>
+    <ParamField body="bank.refno" type="number">
+      The reference number of the transaction.
+    </ParamField>
+    <ParamField body="bank.date" type="string">
+      The date of the fraudulent transaction.
     </ParamField>
   </Expandable>
 </ParamField>
@@ -135,12 +149,12 @@ curl --request POST \
   --header 'token: <your-jwt-token>' \
   --data '{
     "category": "Online Financial Fraud",
-    "subcategory": "UPI-Related Frauds",
+    "subcategory": "UPI Related Frauds",
     "delay": "no",
     "bankbool": "yes",
     "bank": {
-      "amount": 15000,
-      "name": "State Bank of India"
+      "bankname": "State Bank of India",
+      "amount": "15000"
     },
     "date": "2024-03-14",
     "incidentoccur": "WhatsApp",
@@ -159,12 +173,12 @@ const response = await fetch('https://your-api-host/formupload/upload', {
   },
   body: JSON.stringify({
     category: 'Online Financial Fraud',
-    subcategory: 'UPI-Related Frauds',
+    subcategory: 'UPI Related Frauds',
     delay: 'no',
     bankbool: 'yes',
     bank: {
-      amount: 15000,
-      name: 'State Bank of India',
+      bankname: 'State Bank of India',
+      amount: '15000',
     },
     date: '2024-03-14',
     incidentoccur: 'WhatsApp',
@@ -186,10 +200,10 @@ console.log(data.applicationNo); // e.g. 4821
 ```json
 {
   "category": "Online Financial Fraud",
-  "subcategory": "UPI-Related Frauds",
+  "subcategory": "UPI Related Frauds",
   "delay": "no",
   "bankbool": "yes",
-  "bank": { "amount": 15000, "name": "State Bank of India" },
+  "bank": { "bankname": "State Bank of India", "amount": "15000" },
   "date": "2024-03-14",
   "incidentoccur": "WhatsApp",
   "whereid": "+91 98765 43210",

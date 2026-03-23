@@ -83,10 +83,10 @@ The platform is composed of four independent services that work together to hand
 
 The platform uses **JWT (JSON Web Tokens)** for stateless authentication.
 
-1. On successful `POST /login`, the Express server signs a JWT containing the user's email and `usertype`, then sets it as a cookie in the response.
+1. On successful `POST /login`, the Express server signs a JWT with the payload `{ email: user._id }` (the MongoDB `_id` is stored under the `email` claim key) and sets it as an HTTP-only cookie in the response. The JWT is also returned in the response body.
 2. The React SPA reads the cookie via `js-cookie` and attaches the raw token value to every subsequent API request as the `token` request header.
-3. The `tokenverification` middleware on the Express side calls `valid(token)`, which verifies the JWT signature and expiry. A verified token allows the request through; an invalid token returns `401 "wrong token"`.
-4. On `POST /signout`, the cookie is cleared.
+3. The `tokenverification` middleware calls `valid(token)`, which verifies the JWT signature and looks up the user `_id` in MongoDB. A valid user allows the request through; an invalid token returns `401 "wrong token"`.
+4. On `POST /signout`, the cookie is cleared by setting it to an empty string with an immediate expiry.
 
 <Note>
   The `/valid` and `/findusertype` endpoints accept the token as a request header (not a cookie). The frontend uses these endpoints to check session state on page load.
@@ -133,11 +133,11 @@ Stored in the `incidentform` MongoDB collection. Represents a single cybercrime 
 | `date`                  | `Date`    | Date the incident occurred.                                    |
 | `delay`                 | `Boolean` | Whether the complaint was filed with a delay.                  |
 | `incidentoccur`         | `String`  | Platform or medium where the incident occurred.                |
-| `incidentoccurID`       | `String`  | Identifier (e.g., URL, phone number) associated with the incident. |
-| `description`           | `String`  | Full description of the incident.                              |
-| `header`                | `String`  | Summary header for the complaint.                              |
-| `emailtakenby`          | `String`  | Email of the officer who took the case.                        |
-| `whereid`               | `String`  | Location or jurisdiction identifier.                           |
+| `incidentoccurID`       | `String`  | Reserved identifier field associated with the incident platform.   |
+| `description`           | `String`  | Full narrative description of the incident provided by the victim. |
+| `header`                | `String`  | Full email header of the fraudulent message (Business Email Compromise only). |
+| `emailtakenby`          | `String`  | Email address used by the attacker to impersonate a legitimate sender (Business Email Compromise only). |
+| `whereid`               | `String`  | Suspect's identifier on the platform where the incident occurred (e.g., phone number, username, URL). |
 | `proof`                 | `String`  | Base64-encoded or file-path reference to uploaded evidence.    |
 | `legitment`             | `String`  | ML legitimacy score result: `"true"` or `"false"`.             |
 | `verifybypolice`        | `String`  | Police verification status.                                    |
