@@ -1,0 +1,152 @@
+---
+title: "Bank"
+description: "How bank officials use the CyberCrew 1930 Helpline Platform to review verified fraud complaints involving financial loss and process account de-freeze requests."
+---
+
+## Overview
+
+The **Bank** role is for bank officials who handle the financial side of verified cybercrime complaints. The Bank dashboard has three views: the main complaints queue for reviewing police-verified cases where money was lost (`bankbool = true`), a status view for all processed cases, and a dedicated de-freeze section for processing account unlock requests after a court decision.
+
+---
+
+## Accessing the dashboard
+
+<Steps>
+  <Step title="Sign in">
+    Go to `/login`, enter your credentials, and click **Sign In**. The application detects your role as `Bank` and renders the Bank dashboard.
+  </Step>
+
+  <Step title="Choose a view">
+    The menubar offers three views:
+
+    - **Dashboard** — the complaints queue for cases pending bank action (default view)
+    - **Status** — all complaints processed by the bank
+    - **Defreeze** — the de-freeze request queue for court-approved cases
+  </Step>
+</Steps>
+
+---
+
+## Reviewing fraud complaints
+
+The default dashboard view fetches all complaints that are police-verified and involve financial loss (`GET formupload/downloadformsnotverify`). Each complaint card shows:
+
+<AccordionGroup>
+  <Accordion title="Basic complaint details">
+    - Application number (`applicationNo`)
+    - Victim email address
+    - Category (`category`) and subcategory (`subcategory`)
+    - Incident date (`date`)
+    - Delay in reporting (`delay`)
+  </Accordion>
+
+  <Accordion title="Bank details">
+    Shown when `bankbool` is `true`:
+
+    - Bank name (`bankname`), IFSC no. (`ifsc`), account no. (`accno`)
+    - Transaction ID (`transactionID`), amount, reference no. (`refno`), transaction date
+  </Accordion>
+
+  <Accordion title="Email compromise details (when applicable)">
+    Shown only for the **Business Email Compromise/Email Takeover** subcategory:
+
+    - Email taken by (`emailtakenby`)
+    - Full email header (`header`)
+  </Accordion>
+
+  <Accordion title="Incident location and proof">
+    - Platform where the incident occurred (`incidentoccur`)
+    - Suspect identifier (`whereid`)
+    - Uploaded proof image — click to open the full-size version in a new tab
+  </Accordion>
+
+  <Accordion title="ML prediction and police verification">
+    - **Our Prediction** (`legitment`) — the ML model's fraud score for this complaint
+    - **Police Verification** (`verifybypolice`) — the police officer's decision on this case
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Processing the account freeze decision
+
+Each complaint in the queue has an **Account Freeze Status** control at the bottom of its card.
+
+<Steps>
+  <Step title="Review the complaint">
+    Examine the complaint details, bank transaction information, proof image, and police verification status.
+  </Step>
+
+  <Step title="Select a freeze decision">
+    Under **Account Freeze Status**, select:
+
+    - **Yes** — freeze the account associated with this complaint
+    - **No** — do not freeze the account
+
+    The radio input name is keyed to the application number: `verify_[applicationNo]`.
+  </Step>
+
+  <Step title="Submit the decision">
+    Click **Submit**. The platform sends `POST formupload/verifybypolice` with the payload:
+
+    ```json payload
+    {
+      "verifybypolice": "yes" | "no",
+      "applicationNo": "[applicationNo]"
+    }
+    ```
+
+    After submission, the complaints list refreshes by re-fetching `GET formupload/downloadformsnotverify`.
+  </Step>
+</Steps>
+
+---
+
+## Processing de-freeze requests
+
+After the court issues a `yes` decision (`verifybycourt = yes`) on a complaint where money was lost, the case moves to the de-freeze queue. Switch to the **Defreeze** view in the menubar to process these requests.
+
+The Defreeze view itself contains another menubar with two sub-views:
+
+- **Dashboard** — de-freeze requests pending action (`GET formupload/downloadformsnotverifyfordefreeze`)
+- **Status** — all de-freeze requests and their outcomes (`GET formupload/downloadformsfordefreeze`)
+
+### Approving a de-freeze request
+
+<Steps>
+  <Step title="Review the de-freeze request">
+    Each card in the de-freeze queue shows the full complaint details plus the police verification status and the ML prediction. Confirm the court decision has been recorded before proceeding.
+  </Step>
+
+  <Step title="Select a de-freeze decision">
+    Under **Account Freeze Status**, select **Yes** to approve the de-freeze or **No** to deny it.
+  </Step>
+
+  <Step title="Submit the decision">
+    Click **Submit**. The platform sends `POST formupload/defreezebybank` with the payload:
+
+    ```json payload
+    {
+      "verifybypolice": "yes" | "no",
+      "applicationNo": "[applicationNo]"
+    }
+    ```
+
+    The queue refreshes after submission.
+  </Step>
+</Steps>
+
+### De-freeze status fields
+
+The **Status** sub-view within Defreeze shows each processed de-freeze request with the following fields:
+
+| Field | Description |
+|---|---|
+| `verifybypolice` | Police verification decision |
+| `verifybybank` | Bank's account freeze decision |
+| `verifybycourt` | Court's judicial decision |
+| `defreezestatus` | Bank's de-freeze approval or denial |
+
+<Warning>
+  The de-freeze queue only appears for complaints where `bankbool` is `true` and `verifybycourt` is `yes`. Complaints without financial loss or without a court decision do not generate de-freeze requests.
+</Warning>

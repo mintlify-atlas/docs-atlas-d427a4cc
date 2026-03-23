@@ -1,0 +1,152 @@
+---
+title: "Tech stack"
+description: "All technologies used in the CyberCrew 1930 Helpline Platform — frontend, backend, and ML layers — with version numbers from package.json."
+---
+
+The platform is divided into three distinct layers, each with its own runtime and dependencies.
+
+<Tabs>
+  <Tab title="Frontend">
+    The frontend is a React single-page application built with Vite and shipped with animated UI and PDF export capabilities.
+
+    <CardGroup cols={2}>
+      <Card title="React 18" icon="react">
+        Core UI library at version **^18.2.0**. Uses functional components and hooks throughout. `react-dom` **^18.2.0** handles DOM rendering.
+      </Card>
+      <Card title="React Router v6" icon="route">
+        Client-side routing via `react-router-dom` **^6.21.1**. Provides `BrowserRouter`, `Routes`, `Route`, and `Navigate` for declarative route definitions and redirects.
+      </Card>
+      <Card title="Vite" icon="bolt">
+        Build tool and dev server at version **^4.4.5**. Configured with `@vitejs/plugin-react` **^4.0.3** for fast HMR. Replaces Create React App for this project.
+      </Card>
+      <Card title="Framer Motion" icon="wand-sparkles">
+        Animation library at version **^10.17.3**. Used for page transitions and component animations across dashboards.
+      </Card>
+      <Card title="styled-components" icon="paintbrush">
+        CSS-in-JS styling at version **^6.1.6**. All component-level styles are co-located with component definitions.
+      </Card>
+      <Card title="pdfmake" icon="file-pdf">
+        Client-side PDF generation at version **^0.2.9**. Used by dashboards to export complaint reports directly in the browser.
+      </Card>
+      <Card title="js-cookie" icon="cookie">
+        Cookie access utility at version **^3.0.5**. The frontend reads the JWT from the browser cookie and attaches it as the `token` request header on API calls.
+      </Card>
+    </CardGroup>
+
+    **Dev dependencies**
+
+    | Package | Version | Purpose |
+    |---|---|---|
+    | `eslint` | ^8.45.0 | Linting |
+    | `eslint-plugin-react` | ^7.32.2 | React-specific lint rules |
+    | `eslint-plugin-react-hooks` | ^4.6.0 | Hooks lint rules |
+    | `eslint-plugin-react-refresh` | ^0.4.3 | Vite HMR safety checks |
+    | `@types/react` | ^18.2.15 | TypeScript types for React |
+    | `@types/react-dom` | ^18.2.7 | TypeScript types for React DOM |
+  </Tab>
+
+  <Tab title="Backend">
+    The backend is a Node.js/Express REST API. All protected routes require a JWT passed as the `token` request header.
+
+    <CardGroup cols={2}>
+      <Card title="Express.js" icon="server">
+        Web framework at version **^4.18.2**. Handles routing, middleware registration, and JSON responses. The server listens on port **8383**.
+      </Card>
+      <Card title="Mongoose" icon="database">
+        MongoDB ODM at version **^7.5.2**. Defines the `loginSchema` and `incidentformSchema` models and provides all database read/write operations.
+      </Card>
+      <Card title="mongodb" icon="leaf">
+        Official MongoDB Node.js driver at version **^6.3.0**, used as the underlying driver by Mongoose.
+      </Card>
+      <Card title="jsonwebtoken" icon="key">
+        JWT signing and verification at version **^9.0.2**. Tokens are created on login and verified by the `tokenverification` middleware on every protected request.
+      </Card>
+      <Card title="bcrypt" icon="lock">
+        Password hashing at version **^5.1.1**. User passwords are hashed with bcrypt before being stored and compared on login.
+      </Card>
+      <Card title="cookie-parser" icon="cookie">
+        Cookie parsing middleware at version **^1.4.6**. Parses incoming `Cookie` headers and populates `req.cookies`.
+      </Card>
+      <Card title="cors" icon="globe">
+        Cross-origin resource sharing at version **^2.8.5**. Enabled globally on the Express app so the Vite dev server can reach the API.
+      </Card>
+      <Card title="body-parser" icon="brackets-curly">
+        Request body parsing at version **^1.20.2**. Handles both JSON and URL-encoded payloads, registered alongside Express's built-in `express.json()`.
+      </Card>
+      <Card title="nodemon" icon="rotate">
+        Dev watcher at version **^3.0.1**. Restarts the Express server automatically on file changes when running `npm run dev`.
+      </Card>
+    </CardGroup>
+
+    <Note>
+      The backend JSON body size limit is set to `10mb` to accommodate Base64-encoded proof images uploaded with complaint forms.
+    </Note>
+  </Tab>
+
+  <Tab title="ML">
+    The ML layer is a Python Flask service that exposes prediction endpoints consumed by the Express backend.
+
+    <CardGroup cols={2}>
+      <Card title="Flask" icon="flask">
+        Lightweight Python web framework. The ML server runs on port **5000** and exposes `POST /predict` routes for phishing classification and fraud legitimacy scoring.
+      </Card>
+      <Card title="scikit-learn" icon="brain">
+        Provides the `TfidfVectorizer` for text feature extraction and a `LogisticRegression`-based classifier for phishing email detection. Models are serialized and loaded at startup via `joblib`.
+      </Card>
+      <Card title="XGBoost pipeline" icon="chart-line">
+        A `fraud_detection_pipeline.pkl` pipeline (loaded via `joblib`) powers the fraud legitimacy scorer in `flask2.py`. Accepts structured complaint fields and returns a binary prediction.
+      </Card>
+      <Card title="joblib" icon="box">
+        Serialization library used to persist and load trained model artifacts (`.pkl` files). Both Flask servers call `joblib.load()` at startup to avoid retraining on every request.
+      </Card>
+      <Card title="pandas" icon="table">
+        Data manipulation library used in model training scripts for loading and preprocessing complaint datasets.
+      </Card>
+      <Card title="PyMuPDF" icon="file-search">
+        PDF text extraction library used in the model training pipeline to parse PDF-based evidence documents.
+      </Card>
+      <Card title="Tesseract OCR" icon="scan">
+        OCR engine used to extract text from image-based evidence (screenshots, scanned documents) during model training data preparation.
+      </Card>
+    </CardGroup>
+
+    **Flask server entry points**
+
+    | File | Port | Endpoint | Model |
+    |---|---|---|---|
+    | `flaskserver.py` | 5000 | `POST /predict` | TF-IDF + classifier (`your_model.pkl`) for phishing email detection |
+    | `flask2.py` | 5000 (default) | `POST /predict` | `fraud_detection_pipeline.pkl` for complaint legitimacy scoring |
+
+    ```python flaskserver.py
+    model = joblib.load('your_model.pkl')
+    vectorizer = joblib.load('your_vectorizer.pkl')
+
+    @app.route('/predict', methods=['POST'])
+    def predict():
+        input_data_features = vectorizer.transform([input_mail])
+        prediction = model.predict(input_data_features)[0]
+        return jsonify({'legitment': 'Spam mail' if prediction == 1 else 'Ham mail'})
+    ```
+
+    ```python flask2.py
+    pipeline = joblib.load('fraud_detection_pipeline.pkl')
+
+    @app.route('/predict', methods=['POST'])
+    def predict():
+        prediction = Legitimate_model.predict_legitimacy(inputt)
+        return jsonify({'legitment': 'true' if prediction == 1 else 'false'})
+    ```
+
+    <Note>
+      Both Flask servers expose a route named `/predict` but serve different purposes. Deploy them on separate ports if running simultaneously.
+    </Note>
+  </Tab>
+</Tabs>
+
+## Dependency summary
+
+| Layer | Runtime | Key packages |
+|---|---|---|
+| Frontend | Node.js (build) / Browser | React 18, React Router v6, Vite, Framer Motion, styled-components, pdfmake, js-cookie |
+| Backend | Node.js | Express 4, Mongoose 7, jsonwebtoken 9, bcrypt 5, cookie-parser, cors |
+| ML | Python | Flask, scikit-learn, XGBoost, joblib, pandas, PyMuPDF, Tesseract OCR |

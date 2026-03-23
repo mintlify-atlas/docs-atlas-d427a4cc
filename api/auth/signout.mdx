@@ -1,0 +1,177 @@
+---
+title: 'Sign out'
+description: 'Invalidate the current session by clearing the authentication cookie.'
+---
+
+## Request
+
+**Method:** `POST`  
+**Path:** `/signout`
+
+No request body is required. The server identifies the session via the `token` cookie set during login.
+
+## Response
+
+Returns HTTP `200` with a plain string body.
+
+<ResponseField name="(body)" type="string">
+  The string `"sign outed"`. The server also clears the `token` cookie by setting it to an empty value with an immediate expiry.
+</ResponseField>
+
+## How session invalidation works
+
+The server sets `Set-Cookie: token=; Expires=<now>` in the response. This immediately expires the `token` cookie in the client's browser, ending the session. No server-side token revocation list is maintained — the JWT is stateless.
+
+<Warning>
+  If you stored the JWT token from the login response body (outside the cookie), you must discard it manually on the client. Clearing the cookie alone does not invalidate a token held in memory or local storage.
+</Warning>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://your-api-host/signout \
+  --cookie ./cookies.txt \
+  --cookie-jar ./cookies.txt
+```
+
+```javascript JavaScript
+const response = await fetch('https://your-api-host/signout', {
+  method: 'POST',
+  credentials: 'include', // send the token cookie
+});
+
+const message = await response.text();
+console.log(message); // "sign outed"
+```
+
+</CodeGroup>
+
+---
+
+## Token validation — helper endpoints
+
+These utility endpoints are used internally by the platform to inspect a JWT token. All three require the token to be passed in the `token` request header. If the header value is `"undefined"`, the endpoints return `false` immediately without attempting verification.
+
+<AccordionGroup>
+
+  <Accordion title="POST /valid — validate a token">
+
+    Checks whether a JWT token corresponds to a valid user in the database.
+
+    **Header**
+
+    <ParamField header="token" type="string" required>
+      The JWT token obtained from the `/login` response.
+    </ParamField>
+
+    **Response**
+
+    <ResponseField name="(body)" type="boolean">
+      `true` if the token is valid and the user record exists, `false` otherwise.
+    </ResponseField>
+
+    **Example**
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl --request POST \
+      --url https://your-api-host/valid \
+      --header 'token: <your-jwt>'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch('https://your-api-host/valid', {
+      method: 'POST',
+      headers: { token: yourJwt },
+    });
+
+    const isValid = await response.json(); // true or false
+    ```
+
+    </CodeGroup>
+
+  </Accordion>
+
+  <Accordion title="POST /findusertype — get a user's role">
+
+    Decodes a JWT token and returns the `usertype` field from the corresponding user record.
+
+    **Header**
+
+    <ParamField header="token" type="string" required>
+      The JWT token obtained from the `/login` response.
+    </ParamField>
+
+    **Response**
+
+    <ResponseField name="(body)" type="string | boolean">
+      The user's role (`"Victim"`, `"Police"`, `"Bank"`, or `"Court"`) when the token is valid, or `false` if the token is invalid or the user does not exist.
+    </ResponseField>
+
+    **Example**
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl --request POST \
+      --url https://your-api-host/findusertype \
+      --header 'token: <your-jwt>'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch('https://your-api-host/findusertype', {
+      method: 'POST',
+      headers: { token: yourJwt },
+    });
+
+    const usertype = await response.json(); // e.g. "Police"
+    ```
+
+    </CodeGroup>
+
+  </Accordion>
+
+  <Accordion title="POST /email — get a user's email">
+
+    Decodes a JWT token and returns the `email` field from the corresponding user record.
+
+    **Header**
+
+    <ParamField header="token" type="string" required>
+      The JWT token obtained from the `/login` response.
+    </ParamField>
+
+    **Response**
+
+    <ResponseField name="(body)" type="string">
+      The email address associated with the token's user record.
+    </ResponseField>
+
+    **Example**
+
+    <CodeGroup>
+
+    ```bash cURL
+    curl --request POST \
+      --url https://your-api-host/email \
+      --header 'token: <your-jwt>'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch('https://your-api-host/email', {
+      method: 'POST',
+      headers: { token: yourJwt },
+    });
+
+    const email = await response.json(); // e.g. "victim@example.com"
+    ```
+
+    </CodeGroup>
+
+  </Accordion>
+
+</AccordionGroup>

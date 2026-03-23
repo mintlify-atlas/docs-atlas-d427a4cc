@@ -1,0 +1,123 @@
+---
+title: 'Log in'
+description: 'Authenticate a user and receive a session token stored as an HTTP-only cookie.'
+---
+
+<Note>
+  Authentication is not required for this endpoint.
+</Note>
+
+## Request
+
+**Method:** `POST`  
+**Path:** `/login`
+
+### Body parameters
+
+<ParamField body="email" type="string" required>
+  The registered email address of the account.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The account password.
+</ParamField>
+
+## Response
+
+All responses return HTTP `200` with a JSON body.
+
+<ResponseField name="okk" type="boolean" required>
+  `true` when authentication succeeded, `false` on any failure.
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  A human-readable description of the result.
+
+  | Value | Condition |
+  |---|---|
+  | `"Logined Succesfully"` | Credentials valid; token issued. |
+  | `"email or password is wrong"` | Account found but password does not match. |
+  | `"no email found"` | No account with that email exists, or email/password fields are empty. |
+</ResponseField>
+
+<ResponseField name="token" type="string">
+  The signed JWT token. Present only when `okk` is `true`. The server also sets this value as an HTTP-only cookie named `token` with a max age of 1 000 000 ms (~16 minutes).
+</ResponseField>
+
+## Session token
+
+On a successful login the server issues a JWT signed with a secret key. The token payload contains the MongoDB `_id` of the authenticated user record (stored under the `email` claim).
+
+The token is delivered in two ways:
+
+- **Cookie** — the server sets `Set-Cookie: token=<jwt>; Max-Age=1000000; HttpOnly`.
+- **Response body** — the `token` field in the JSON response.
+
+Subsequent authenticated requests must supply the token in the `token` request header (not as a `Bearer` header). See the [middleware source](/api/auth/signout#token-validation) for how the server verifies the token.
+
+<Warning>
+  The cookie is marked `httpOnly`, which means it cannot be read by client-side JavaScript. If you need the token for programmatic API calls, store the value returned in the response body.
+</Warning>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://your-api-host/login \
+  --header 'Content-Type: application/json' \
+  --cookie-jar ./cookies.txt \
+  --data '{
+    "email": "victim@example.com",
+    "password": "securepassword"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://your-api-host/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include', // include cookies in the request
+  body: JSON.stringify({
+    email: 'victim@example.com',
+    password: 'securepassword',
+  }),
+});
+
+const data = await response.json();
+if (data.okk) {
+  // Store token for use in authenticated requests
+  const token = data.token;
+}
+```
+
+</CodeGroup>
+
+### Success response
+
+```json
+{
+  "okk": true,
+  "message": "Logined Succesfully",
+  "token": "<signed-jwt>"
+}
+```
+
+### Failure — wrong password
+
+```json
+{
+  "okk": false,
+  "message": "email or password is wrong"
+}
+```
+
+### Failure — email not found
+
+```json
+{
+  "okk": false,
+  "message": "no email found"
+}
+```

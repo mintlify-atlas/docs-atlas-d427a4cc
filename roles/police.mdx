@@ -1,0 +1,125 @@
+---
+title: "Police"
+description: "How police officers use the CyberCrew 1930 Helpline Platform to review, verify, and manage cybercrime complaints submitted by victims."
+---
+
+## Overview
+
+The **Police** role is for law enforcement officers who review cybercrime complaints filed by victims. After logging in, officers access a dashboard that shows unverified complaints pending their action. Officers can examine complaint details, review the ML fraud prediction, and submit a verification decision for each case. A separate status view shows all complaints — both verified and unverified — along with their full lifecycle state.
+
+---
+
+## Accessing the dashboard
+
+<Steps>
+  <Step title="Navigate to the login page">
+    Open the platform and go to `/login`. If you are already authenticated, you are redirected directly to `/dashboard`.
+  </Step>
+
+  <Step title="Sign in">
+    Enter your credentials and click **Sign In**. The application detects your role as `Police` and renders the Police dashboard.
+  </Step>
+
+  <Step title="Choose a view">
+    The menubar lets you switch between two views:
+
+    - **Dashboard** — the pending complaints queue showing only unverified complaints (default view)
+    - **Status** — the full complaints list showing all complaints regardless of verification state
+  </Step>
+</Steps>
+
+---
+
+## Reviewing unverified complaints
+
+The default dashboard view fetches all complaints that have not yet been verified (`GET formupload/downloadformsnotverify`). Each complaint card displays the following information:
+
+<AccordionGroup>
+  <Accordion title="Basic complaint details">
+    - Application number (`applicationNo`)
+    - Victim email address
+    - Category (`category`) and subcategory (`subcategory`)
+    - Incident date (`date`)
+    - Delay in reporting (`delay`)
+  </Accordion>
+
+  <Accordion title="Bank details (when money was lost)">
+    Shown only when `bankbool` is `true`:
+
+    - Bank name (`bankname`), IFSC no. (`ifsc`), account no. (`accno`)
+    - Transaction ID (`transactionID`), amount, reference no. (`refno`), transaction date
+  </Accordion>
+
+  <Accordion title="Email compromise details (when applicable)">
+    Shown only for the **Business Email Compromise/Email Takeover** subcategory:
+
+    - Email taken by (`emailtakenby`)
+    - Full email header (`header`)
+  </Accordion>
+
+  <Accordion title="Incident location and proof">
+    - Platform where incident occurred (`incidentoccur`)
+    - Suspect identifier (`whereid`)
+    - Uploaded proof image — click the image to open the full-size version in a new tab
+  </Accordion>
+
+  <Accordion title="ML prediction">
+    The platform's fraud detection model automatically scores each submission. The result appears as **Our Prediction** (`legitment`) on the complaint card.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Verifying a complaint
+
+Each unverified complaint has a verification control at the bottom of its card.
+
+<Steps>
+  <Step title="Review the complaint">
+    Read through the complaint details, check the proof image, and review the ML prediction score.
+  </Step>
+
+  <Step title="Select a verification decision">
+    Under **Your Verify**, select one of the radio buttons:
+
+    - **Yes** — the complaint is legitimate and should proceed
+    - **No** — the complaint is rejected
+
+    The radio input name is keyed to the application number: `verify_[applicationNo]`.
+  </Step>
+
+  <Step title="Submit the decision">
+    Click **Submit**. The platform sends `POST formupload/verifybypolice` with the payload:
+
+    ```json payload
+    {
+      "verifybypolice": "yes" | "no",
+      "applicationNo": "[applicationNo]"
+    }
+    ```
+
+    After submission, the complaint list refreshes automatically by re-fetching `GET formupload/downloadformsnotverify`. The verified complaint is removed from the pending queue.
+  </Step>
+</Steps>
+
+<Note>
+  Submitting `verifybypolice: "yes"` on a complaint where `bankbool` is `true` routes the case to the Bank role for account freeze processing. Cases where `bankbool` is `false` proceed directly to court review.
+</Note>
+
+---
+
+## Viewing all complaints
+
+Switch to the **Status** view from the menubar to see every complaint in the system (`GET formupload/downloadforms`), including those already verified. Each card shows the same complaint details as the pending queue, plus the full downstream status:
+
+| Field | Description |
+|---|---|
+| `verifybypolice` | Your verification decision for this complaint |
+| `verifybybank` | The bank's account freeze decision (shown if `bankbool` is `true`) |
+| `verifybycourt` | The court's judicial decision |
+
+If a downstream stage is still pending, the card shows a `waiting for [stage]` message in place of the decision value.
+
+<Tip>
+  Use the Status view to follow up on cases you have already verified and to monitor the full complaint lifecycle through bank and court stages.
+</Tip>

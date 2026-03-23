@@ -1,0 +1,129 @@
+---
+title: 'Predict phishing'
+description: 'Classify an email or message as spam (phishing) or ham (legitimate) using a logistic regression model.'
+---
+
+## Request
+
+**Method:** `POST`  
+**Base URL:** `http://localhost:5000`  
+**Path:** `/predict`
+
+<Note>
+  This endpoint is served by the internal Flask ML server (`flaskserver.py`). It is not exposed publicly and is called from within the platform backend.
+</Note>
+
+### Body parameters
+
+<ParamField body="input_mail" type="string" required>
+  The raw text of the email or message to classify. Pass the full message body as a plain string.
+</ParamField>
+
+## How it works
+
+The server loads a pre-trained logistic regression model (`your_model.pkl`) and a fitted TF-IDF vectorizer (`your_vectorizer.pkl`) at startup. On each request:
+
+1. The input text is transformed using the loaded TF-IDF vectorizer.
+2. The model predicts a binary label: `1` for spam, `0` for ham.
+3. The label is mapped to a human-readable string and returned.
+
+## Response
+
+All responses return HTTP `200` with a JSON body, except on unhandled exceptions which return HTTP `500`.
+
+<ResponseField name="legitment" type="string">
+  The classification result.
+
+  - `"Spam mail"` — the model predicts the input is a phishing or spam message (prediction = 1)
+  - `"Ham mail"` — the model predicts the input is a legitimate message (prediction = 0)
+</ResponseField>
+
+### Error response (HTTP 500)
+
+<ResponseField name="error" type="string">
+  A string describing the exception that was raised. Returned with HTTP status `500`.
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL — spam input
+curl --request POST \
+  --url http://localhost:5000/predict \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "input_mail": "Congratulations! You have won a $1,000 gift card. Click here to claim your prize now: http://free-prize.example.com"
+  }'
+```
+
+```python Python — spam input
+import requests
+
+response = requests.post(
+    'http://localhost:5000/predict',
+    json={
+        'input_mail': 'Congratulations! You have won a $1,000 gift card. Click here to claim your prize now: http://free-prize.example.com'
+    }
+)
+
+print(response.json())
+# {'legitment': 'Spam mail'}
+```
+
+</CodeGroup>
+
+<CodeGroup>
+
+```bash cURL — ham input
+curl --request POST \
+  --url http://localhost:5000/predict \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "input_mail": "Hi, just checking in on the status of the project report. Let me know if you need anything from my end."
+  }'
+```
+
+```python Python — ham input
+import requests
+
+response = requests.post(
+    'http://localhost:5000/predict',
+    json={
+        'input_mail': 'Hi, just checking in on the status of the project report. Let me know if you need anything from my end.'
+    }
+)
+
+print(response.json())
+# {'legitment': 'Ham mail'}
+```
+
+</CodeGroup>
+
+### Spam classification response
+
+```json
+{ "legitment": "Spam mail" }
+```
+
+### Ham classification response
+
+```json
+{ "legitment": "Ham mail" }
+```
+
+### Error response
+
+```json
+{ "error": "KeyError: 'input_mail'" }
+```
+
+## Model details
+
+| Property | Value |
+|---|---|
+| Algorithm | Logistic Regression |
+| Feature extraction | TF-IDF vectorization |
+| Model file | `your_model.pkl` |
+| Vectorizer file | `your_vectorizer.pkl` |
+| Server port | `5000` |

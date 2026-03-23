@@ -1,0 +1,66 @@
+---
+title: "Introduction"
+description: "CyberCrew 1930 Helpline Platform — a full-stack cybercrime complaint management system built for the Rajasthan Police Hackathon."
+---
+
+## What is the 1930 Helpline Platform?
+
+The **CyberCrew 1930 Helpline Platform** is a digital solution developed for the Rajasthan Police Hackathon to modernize India's national cybercrime helpline (1930). The platform provides end-to-end management of online financial fraud complaints, connecting victims, police officers, banks, and courts in a single coordinated workflow.
+
+The system combines a React frontend, a Node.js/Express backend, MongoDB database, and Python ML models to automate fraud detection and streamline the complaint lifecycle from filing through resolution.
+
+<CardGroup cols={2}>
+  <Card title="File a Complaint" icon="file-shield" href="/roles/victim">
+    Victims can submit online financial fraud reports with evidence and track resolution status in real time.
+  </Card>
+  <Card title="Police Verification" icon="shield-check" href="/roles/police">
+    Police officers review submitted complaints and verify their legitimacy before escalating to banks or courts.
+  </Card>
+  <Card title="Bank De-freeze" icon="building-columns" href="/roles/bank">
+    Banks receive de-freeze requests from verified cases and process account unlock workflows.
+  </Card>
+  <Card title="Court Review" icon="gavel" href="/roles/court">
+    Courts access verified case files and manage judicial proceedings for cybercrime matters.
+  </Card>
+</CardGroup>
+
+## Key capabilities
+
+<CardGroup cols={2}>
+  <Card title="ML Fraud Detection" icon="brain" href="/ml/overview">
+    Phishing email classification and fraud legitimacy scoring using trained scikit-learn and XGBoost models.
+  </Card>
+  <Card title="AI Chatbot" icon="robot" href="/features/chatbot">
+    Guided complaint assistant that helps victims understand the filing process and next steps.
+  </Card>
+  <Card title="Role-based Access" icon="users" href="/architecture/overview">
+    JWT-authenticated dashboards tailored to each stakeholder: Victim, Police, Bank, and Court.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api/auth/signup">
+    Full REST API documentation for authentication, complaint management, de-freeze, and ML prediction endpoints.
+  </Card>
+</CardGroup>
+
+## How it works
+
+The platform follows a structured complaint lifecycle:
+
+1. **Victim files a complaint** — submits fraud details, selects category/subcategory, uploads proof, and provides suspect identifiers.
+2. **ML models analyze the case** — phishing detection and fraud legitimacy models automatically score the submission.
+3. **Police review and verify** — assigned officers examine the complaint and mark it verified or rejected.
+4. **Bank processes de-freeze** — if money is involved, the relevant bank receives a de-freeze request and processes account unlocking.
+5. **Court takes judicial action** — courts access verified case files for formal legal proceedings.
+
+## Quick links
+
+<CardGroup cols={3}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Get the platform running locally in minutes
+  </Card>
+  <Card title="Architecture" icon="sitemap" href="/architecture/overview">
+    Understand the system components
+  </Card>
+  <Card title="Tech Stack" icon="layer-group" href="/architecture/tech-stack">
+    Frontend, backend, and ML technologies
+  </Card>
+</CardGroup>

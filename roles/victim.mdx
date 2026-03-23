@@ -1,0 +1,203 @@
+---
+title: "Victim"
+description: "How citizens who have experienced online financial fraud use the CyberCrew 1930 Helpline Platform to file complaints, upload evidence, and track case progress."
+---
+
+## Overview
+
+The **Victim** role is for citizens who have experienced online financial fraud and want to report it through the 1930 Helpline Platform. After logging in, victims access a dashboard with two views: the incident form for filing new complaints, and the status tracker for monitoring existing ones. A chatbot is also available on the dashboard to guide victims through the process.
+
+<Note>
+  If you do not yet have an account, open the platform and click **Sign Up** on the login page. Select **Victim** as your role during registration.
+</Note>
+
+---
+
+## Accessing the dashboard
+
+<Steps>
+  <Step title="Navigate to the login page">
+    Open the platform in your browser. If you are not authenticated, you are automatically redirected to `/login`.
+  </Step>
+
+  <Step title="Sign in">
+    Enter your registered email and password, then click **Sign In**. The application detects your role and redirects you to `/dashboard`, which renders the Victim dashboard.
+  </Step>
+
+  <Step title="Choose a view">
+    The menubar at the top of the dashboard lets you switch between two views:
+
+    - **Dashboard** — the incident form for filing a new complaint (default view)
+    - **Status** — the status tracker for complaints you have already submitted
+  </Step>
+</Steps>
+
+---
+
+## Filing a complaint
+
+The incident form collects all information needed to open a complaint. All fields marked with `*` are required.
+
+### Category and subcategory
+
+The **Category of complaint** field is pre-set to `Online Finacial Fraud` and cannot be changed.
+
+Select the **Sub-Category of complaint** that best describes the fraud you experienced:
+
+<AccordionGroup>
+  <Accordion title="Aadhar Enabled Payment System (AEPS)">
+    Fraud involving the Aadhaar-based biometric payment system.
+  </Accordion>
+  <Accordion title="Business Email Compromise/Email Takeover">
+    Fraud where an attacker impersonates a business contact via email. Selecting this subcategory reveals two additional fields:
+
+    - **Email from which authorization email has been received** (`emailtakenby`) — the sender address used by the fraudster
+    - **Full Header of the alleged email** (`header`) — the raw email header for forensic analysis
+  </Accordion>
+  <Accordion title="Debit/Credit Card Fraud/Sim Swap Fraud">
+    Unauthorized transactions using your debit or credit card, or fraudulent SIM swaps.
+  </Accordion>
+  <Accordion title="Demat/Depository Fraud">
+    Fraud related to demat accounts or depository services.
+  </Accordion>
+  <Accordion title="E-Wallet Related Fraud">
+    Unauthorized transactions or scams involving digital wallets.
+  </Accordion>
+  <Accordion title="Fraud Call/Vishing">
+    Voice-based phishing calls where the fraudster impersonates a trusted entity.
+  </Accordion>
+  <Accordion title="Internet Banking Related Fraud">
+    Unauthorized access or transactions through internet banking portals.
+  </Accordion>
+  <Accordion title="UPI Related Frauds">
+    Fraud conducted through the Unified Payments Interface.
+  </Accordion>
+</AccordionGroup>
+
+### Money lost
+
+Answer **Money Lost?** with **Yes** or **No**.
+
+If you select **Yes**, a bank details section appears where you must provide:
+
+| Field | Description |
+|---|---|
+| Bank name | Name of your bank |
+| IFSC no. | Branch IFSC code |
+| Account no. | Your account number (`accno`) |
+| Transaction ID | ID of the fraudulent transaction (`transactionID`) |
+| Amount | Amount lost |
+| Ref no. | Reference number of the transaction (`refno`) |
+| Date | Date of the fraudulent transaction |
+
+<Note>
+  Setting **Money Lost** to `yes` marks the complaint with `bankbool = yes`. This flag routes the case to the Bank role for account freeze or de-freeze processing after police verification.
+</Note>
+
+### Date and delay
+
+- **Date** — the date the incident occurred
+- **Delay in reporting?** — select **Yes** if you are reporting after a significant delay, or **No** if you are reporting promptly
+
+### Platform and suspect identifier
+
+Select the platform where the incident occurred from **Where did the incident occur?**:
+
+<Tabs>
+  <Tab title="Social media">
+    - Facebook
+    - Instagram
+    - Snapchat
+    - Twitter
+    - YouTube
+    - LinkedIn
+  </Tab>
+  <Tab title="Messaging">
+    - WhatsApp
+    - Telegram
+  </Tab>
+  <Tab title="Other">
+    - Email
+    - Website URL
+    - Mobile App
+    - Other
+  </Tab>
+</Tabs>
+
+Once you select a platform, two additional fields appear:
+
+- **Give id of `[platform]` of suspect** (`whereid`) — the username, URL, phone number, or other identifier for the suspect on the selected platform
+- **Upload Proof** (`proof`) — upload an image file as evidence (screenshot, document, etc.)
+
+### Description
+
+In the **Provide any additional details of the incident** textarea (`description`), describe what happened in your own words. This field is required.
+
+### Submitting the form
+
+Click **Submit Application** when all required fields are complete. The platform sends the form data to the backend via `POST formupload/upload`. On success, you receive an `Uploaded Successfully` confirmation.
+
+<Warning>
+  If any required field is empty, the submission is blocked and you see a `fill up required information` alert. Check that category, subcategory, money lost, platform, suspect ID, date, description, and proof are all filled in.
+</Warning>
+
+---
+
+## Tracking complaint status
+
+Switch to the **Status** view from the menubar to see all complaints you have filed. Each complaint card displays:
+
+<AccordionGroup>
+  <Accordion title="Basic details">
+    - Application number (`applicationNo`)
+    - Email address
+    - Category and subcategory
+    - Incident date
+    - Delay in reporting
+  </Accordion>
+
+  <Accordion title="Bank details (if money was lost)">
+    Shown only when `bankbool` is `true`:
+
+    - Bank name, IFSC no., account no.
+    - Transaction ID, amount, reference no., transaction date
+  </Accordion>
+
+  <Accordion title="Email compromise details (if applicable)">
+    Shown only for the **Business Email Compromise/Email Takeover** subcategory:
+
+    - Email taken by (`emailtakenby`)
+    - Full email header (`header`)
+  </Accordion>
+
+  <Accordion title="Incident location and proof">
+    - Platform where the incident occurred (`incidentoccur`)
+    - Suspect identifier (`whereid`)
+    - Uploaded proof image (click to open full size)
+  </Accordion>
+
+  <Accordion title="Case progression">
+    The status section shows the current stage of your complaint in the lifecycle:
+
+    | Stage | What it means |
+    |---|---|
+    | `Waiting for Police Verification` | Your complaint has been received and is pending review by a police officer |
+    | `Application Accepted: yes` or `no` | A police officer has reviewed and verified (`verifybypolice`) your complaint |
+    | `waiting for bank status` | Police verified; awaiting the bank's account freeze decision (`verifybybank`) |
+    | `bank Status: [value]` | The bank has processed the account freeze status |
+    | `waiting for court decision` | Bank and police steps complete; case is with the court |
+    | `Court Decision: [value]` | The court has recorded a decision (`verifybycourt`) |
+    | `Waiting for bank` | Court approved; de-freeze request sent to the bank |
+    | `Defreeze Status: [value]` | The bank has processed the de-freeze request (`defreezestatus`) |
+  </Accordion>
+
+  <Accordion title="ML prediction">
+    The platform's fraud detection model automatically scores your submission. The result is shown as **Our Prediction** (`legitment`).
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Chatbot
+
+A chatbot (`Chatbot`) is available alongside the incident form on the dashboard's default view. It provides guided assistance to help you understand the filing process and next steps. The chatbot is not available in the Status view.

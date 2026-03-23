@@ -1,0 +1,155 @@
+---
+title: "Fraud detection"
+description: "How two ML models automatically analyze complaints for phishing and fraud legitimacy after submission."
+---
+
+## Overview
+
+Every complaint submitted through the platform is automatically analyzed by two ML models before it is saved to the database. The combined result is stored in the `legitment` field on the incident record and displayed to both the victim and police officers on their dashboards.
+
+<CardGroup cols={2}>
+  <Card title="Phishing email detector" icon="envelope-open">
+    Model 1 (Flask, port 5000) classifies email content as spam/phishing or legitimate using TF-IDF and Logistic Regression.
+  </Card>
+  <Card title="Fraud legitimacy scorer" icon="magnifying-glass-chart">
+    Model 2 (Flask2) scores the full complaint data using an XGBoost pipeline to determine whether the complaint is likely legitimate.
+  </Card>
+</CardGroup>
+
+---
+
+## How the backend calls the ML server
+
+Immediately after the backend receives a complaint submission, it forwards the data to the Flask prediction server before writing the record to MongoDB:
+
+```javascript uploadform.js — ML call
+let get = await fetch("http://127.0.0.1:5000/predict", {
+  method: "POST",
+  body: JSON.stringify(data),
+  headers: headersList,
+});
+const responseData = await get.json();
+console.log("responseData", responseData);
+data = { ...data, ...responseData };
+await incidentformModel.create(data);
+```
+
+The ML server's response is merged into the complaint data object before `incidentformModel.create` is called. This means the `legitment` value is always present on the record when it is first saved.
+
+---
+
+## The `legitment` field
+
+The `legitment` field is a `String` on the `incidentform` schema:
+
+```javascript schema.js
+const incidentformSchema = new mongoose.Schema({
+  ...
+  legitment: String,
+  ...
+});
+```
+
+It stores the result returned by the active ML server at the time of submission. The value is shown as **Our Prediction** on complaint cards in both the victim status view and the police dashboard.
+
+---
+
+## Model 1: Phishing email detector
+
+This model runs on a Flask server on **port 5000** and classifies email content for phishing or spam.
+
+**Technique:** TF-IDF vectorization + Logistic Regression
+
+**Endpoint:** `POST /predict`
+
+**Input:** The model reads the `input_mail` field from the request body:
+
+```python flaskserver.py — prediction
+data = request.get_json(force=True)
+input_mail = data['input_mail']
+input_data_features = vectorizer.transform([input_mail])
+prediction = model.predict(input_data_features)[0]
+```
+
+**Output:**
+
+| Prediction value | `legitment` result |
+|---|---|
+| `1` | `"Spam mail"` |
+| `0` | `"Ham mail"` |
+
+```python flaskserver.py — result mapping
+if prediction == 1:
+    result = "Spam mail"
+else:
+    result = "Ham mail"
+return jsonify({'legitment': result})
+```
+
+The model and vectorizer are loaded from serialized files at startup:
+
+```python flaskserver.py — model loading
+model = joblib.load('your_model.pkl')
+vectorizer = joblib.load('your_vectorizer.pkl')
+```
+
+---
+
+## Model 2: Fraud legitimacy scorer
+
+This model runs on a second Flask server (Flask2) and analyzes the full complaint record to score whether the reported fraud is likely legitimate.
+
+**Technique:** XGBoost pipeline (loaded via `joblib`)
+
+**Endpoint:** `POST /predict`
+
+**Input:** The model builds an input dictionary from the complaint fields. When `bankbool` is `true`, the financial amount is included; otherwise it defaults to `"0"`:
+
+```python flask2.py — input construction
+if input_data.get("bankbool") == True:
+    inputt = {
+        'Complaint_ID': input_data.get('applicationNo'),
+        'Complainant_Name': input_data.get('email'),
+        'Date_Time': input_data.get('date'),
+        'Fraud_Type': input_data.get('subcategory'),
+        'Amount': input_data.get('bank').get('amount'),
+        'Description': input_data.get('description'),
+        'IP_Address': '192.168.1.10'
+    }
+else:
+    inputt = {
+        'Complaint_ID': input_data.get('applicationNo'),
+        'Complainant_Name': input_data.get('email'),
+        'Date_Time': input_data.get('date'),
+        'Fraud_Type': input_data.get('subcategory'),
+        'Amount': '0',
+        'Description': input_data.get('description'),
+        'IP_Address': '192.168.1.10'
+    }
+```
+
+**Output:**
+
+| Prediction value | `legitment` result |
+|---|---|
+| `1` | `"true"` |
+| `0` | `"false"` |
+
+```python flask2.py — result mapping
+prediction = Legitimate_model.predict_legitimacy(inputt)
+if prediction == 1:
+    result = "true"
+else:
+    result = "false"
+return jsonify({'legitment': result})
+```
+
+The pipeline is loaded from a serialized file at startup:
+
+```python flask2.py — pipeline loading
+pipeline = joblib.load('fraud_detection_pipeline.pkl')
+```
+
+<Tip>
+  For in-depth documentation on the ML model architecture, training data, and evaluation metrics, see the [ML Models](/ml/overview) section.
+</Tip>

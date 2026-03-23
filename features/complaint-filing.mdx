@@ -1,0 +1,192 @@
+---
+title: "Complaint filing"
+description: "How the online financial fraud complaint form works — fields, validation, proof upload, and backend submission."
+---
+
+## Overview
+
+The complaint filing form is the primary entry point for victims reporting online financial fraud on the CyberCrew 1930 Helpline Platform. The form collects structured incident details, a suspect identifier, and supporting evidence, then submits the data to the backend via a single POST request. After submission, two ML models automatically analyze the complaint for fraud legitimacy.
+
+<Note>
+  Only users with the **Victim** role can access and submit the complaint form. All fields marked with `*` are required before the form can be submitted.
+</Note>
+
+---
+
+## Form fields
+
+### Category
+
+The `category` field is pre-set to `Online Finacial Fraud` and is read-only. You cannot change this value.
+
+### Subcategory
+
+Select the `subcategory` that best describes the fraud:
+
+<AccordionGroup>
+  <Accordion title="Aadhar Enabled Payment System (AEPS)">
+    Fraud involving the Aadhaar-based biometric payment system.
+  </Accordion>
+  <Accordion title="Business Email Compromise/Email Takeover">
+    Fraud where an attacker impersonates a business contact via email.
+
+    Selecting this subcategory reveals two additional fields:
+
+    - **Email from which authorization email has been received** (`emailtakenby`) — the sender address used by the fraudster
+    - **Full Header of the alleged email** (`header`) — the raw email header for forensic analysis
+  </Accordion>
+  <Accordion title="Debit/Credit Card Fraud/Sim Swap Fraud">
+    Unauthorized transactions using your debit or credit card, or fraudulent SIM swaps.
+  </Accordion>
+  <Accordion title="Demat/Depository Fraud">
+    Fraud related to demat accounts or depository services.
+  </Accordion>
+  <Accordion title="E-Wallet Related Fraud">
+    Unauthorized transactions or scams involving digital wallets.
+  </Accordion>
+  <Accordion title="Fraud Call/Vishing">
+    Voice-based phishing calls where the fraudster impersonates a trusted entity.
+  </Accordion>
+  <Accordion title="Internet Banking Related Fraud">
+    Unauthorized access or transactions through internet banking portals.
+  </Accordion>
+  <Accordion title="UPI Related Frauds">
+    Fraud conducted through the Unified Payments Interface.
+  </Accordion>
+</AccordionGroup>
+
+### Money lost (`bankbool`)
+
+Answer **Money Lost?** with **Yes** or **No**. This sets the `bankbool` field.
+
+- `yes` — a bank details section appears where you must provide account and transaction information. This flag routes the verified case to the Bank role for de-freeze processing.
+- `no` — the bank details section is hidden.
+
+<Note>
+  When `bankbool` is `yes`, the bank details are stored in the `bank` object on the incident record.
+</Note>
+
+### Date (`date`)
+
+The date on which the incident occurred.
+
+### Delay in reporting (`delay`)
+
+Select **Yes** if you are reporting after a significant delay, or **No** if you are reporting promptly. This sets the `delay` field.
+
+### Platform and suspect identifier
+
+Select the platform where the incident occurred from **Where did the incident occur?** (`incidentoccur`):
+
+<Tabs>
+  <Tab title="Social media">
+    - Facebook
+    - Instagram
+    - Snapchat
+    - Twitter
+    - YouTube
+    - LinkedIn
+  </Tab>
+  <Tab title="Messaging">
+    - WhatsApp
+    - Telegram
+  </Tab>
+  <Tab title="Other">
+    - Email
+    - Website URL
+    - Mobile App
+    - Other
+  </Tab>
+</Tabs>
+
+Once you select a platform, the **Give id of `[platform]` of suspect** field appears. Enter the username, URL, phone number, or other identifier for the suspect on that platform. This value is stored as `whereid`.
+
+### Proof upload (`proof`)
+
+After selecting a platform, an **Upload Proof** file input appears. Select an image file (screenshot, document, etc.) as evidence.
+
+The frontend converts the file to a Base64 string using the browser's `FileReader` API before including it in the request body:
+
+```javascript frontend proof encoding
+const handleimage = async (e) => {
+  let reader = new FileReader();
+  reader.readAsDataURL(e.target.files[0]);
+  reader.onload = () => {
+    setproof(reader.result);
+  };
+};
+```
+
+The Base64 string is stored in the `proof` field on the incident record.
+
+### Description
+
+The **Provide any additional details of the incident** textarea (`description`) is for a free-text account of what happened. This field is required.
+
+---
+
+## Form validation
+
+When you click **Submit Application**, the frontend checks that all required fields are non-empty before sending the request:
+
+| Field | Required |
+|---|---|
+| `category` | Yes |
+| `subcategory` | Yes |
+| `delay` | Yes |
+| `bankbool` | Yes |
+| `incidentoccur` | Yes |
+| `date` | Yes |
+| `description` | Yes |
+| `whereid` | Yes |
+| `proof` | Yes |
+
+<Warning>
+  If any required field is empty, the submission is blocked and you see a `fill up required information` alert. No request is sent to the backend until all required fields are filled.
+</Warning>
+
+---
+
+## Submission
+
+When validation passes, the form sends a `POST` request to the `formupload/upload` endpoint:
+
+```json request body
+{
+  "category": "Online Finacial Fraud",
+  "subcategory": "UPI Related Frauds",
+  "emailtakenby": "",
+  "header": "",
+  "delay": "no",
+  "bankbool": "yes",
+  "incidentoccur": "WhatsApp",
+  "bank": { "amount": "5000", ... },
+  "whereid": "+91-XXXXXXXXXX",
+  "date": "2024-01-15",
+  "description": "Received a fraudulent payment request...",
+  "proof": "data:image/png;base64,..."
+}
+```
+
+The request must include a valid JWT in the `token` header. The backend extracts the victim's email from the token and attaches it to the record alongside a randomly generated `applicationNo` (a 4-digit number unique across all records).
+
+On success, the UI displays an `Uploaded Successfully` alert.
+
+---
+
+## Backend ML check
+
+Immediately after receiving the complaint, the backend forwards the data to the phishing detection Flask server before saving the record:
+
+```javascript uploadform.js
+let get = await fetch("http://127.0.0.1:5000/predict", {
+  method: "POST",
+  body: JSON.stringify(data),
+  headers: headersList,
+});
+const responseData = await get.json();
+data = { ...data, ...responseData };
+await incidentformModel.create(data);
+```
+
+The ML server returns a `legitment` field (`"Spam mail"` or `"Ham mail"`) which is merged into the complaint record before it is saved to MongoDB. See [Fraud detection](/features/fraud-detection) for details on both ML models.

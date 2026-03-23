@@ -1,0 +1,241 @@
+---
+title: "Phishing email detector"
+description: "Logistic Regression model that classifies email content as spam or legitimate using TF-IDF vectorization."
+---
+
+The phishing email detector is a binary text classifier trained on a labeled email dataset. It is served by `flaskserver.py` on port 5000 and is called by the Express backend immediately after a complaint is submitted.
+
+---
+
+## Model type
+
+| Property | Value |
+|---|---|
+| Algorithm | Logistic Regression (`sklearn.linear_model.LogisticRegression`) |
+| Feature extraction | TF-IDF vectorization (`TfidfVectorizer`) |
+| Library | scikit-learn |
+| Serialization | `joblib` |
+
+---
+
+## Training data
+
+The model is trained on `Datasets/phishing_data.csv`. The dataset has two columns:
+
+| Column | Description |
+|---|---|
+| `Category` | Label — `ham` (legitimate) or `spam` (phishing) |
+| `Message` | Raw email text |
+
+Missing values are replaced with empty strings before training:
+
+```python phishing_model.py
+raw_data = pd.read_csv('Datasets/phishing_data.csv')
+data = raw_data.where((pd.notnull(raw_data)), '')
+```
+
+---
+
+## Feature engineering
+
+Text is converted to a numeric feature matrix using `TfidfVectorizer`:
+
+```python phishing_model.py
+feature_extraction = TfidfVectorizer(min_df=1, stop_words='english', lowercase=True)
+
+X_train_features = feature_extraction.fit_transform(X_train)
+X_test_features = feature_extraction.transform(X_test)
+```
+
+| Parameter | Value | Effect |
+|---|---|---|
+| `min_df` | `1` | Include all tokens that appear at least once |
+| `stop_words` | `'english'` | Remove common English stop words |
+| `lowercase` | `True` | Normalize all tokens to lowercase |
+
+<Note>
+  The vectorizer is fitted only on training data. The test set and live inputs are transformed using the already-fitted vectorizer to prevent data leakage.
+</Note>
+
+---
+
+## Label encoding
+
+The string labels in `Category` are replaced with integers before training:
+
+```python phishing_model.py
+data.loc[data['Category'] == 'ham',  'Category'] = 0
+data.loc[data['Category'] == 'spam', 'Category'] = 1
+```
+
+| Label | Integer |
+|---|---|
+| `ham` (legitimate) | `0` |
+| `spam` (phishing) | `1` |
+
+---
+
+## Training process
+
+<Steps>
+  <Step title="Split the data">
+    The dataset is split into 80% training and 20% test with a fixed random seed:
+
+    ```python phishing_model.py
+    X_train, X_test, Y_train, Y_test = train_test_split(
+        X, Y, test_size=0.2, random_state=3
+    )
+    ```
+  </Step>
+  <Step title="Convert labels to integers">
+    Label columns are cast to `int` after the split:
+
+    ```python phishing_model.py
+    Y_train = Y_train.astype('int')
+    Y_test  = Y_test.astype('int')
+    ```
+  </Step>
+  <Step title="Fit the model">
+    A `LogisticRegression` instance is trained on the TF-IDF features:
+
+    ```python phishing_model.py
+    model = LogisticRegression()
+    model.fit(X_train_features, Y_train)
+    ```
+  </Step>
+  <Step title="Evaluate accuracy">
+    The model is evaluated on the held-out test set:
+
+    ```python phishing_model.py
+    Y_pred = model.predict(X_test_features)
+    accuracy_of_model = accuracy_score(Y_test, Y_pred)
+    print("Accuracy: ", accuracy_of_model * 100, "%")
+    ```
+  </Step>
+  <Step title="Persist the artifacts">
+    Both the fitted model and the fitted vectorizer are saved to disk:
+
+    ```python phishing_model.py
+    joblib.dump(model,             'your_model.pkl')
+    joblib.dump(feature_extraction, 'your_vectorizer.pkl')
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Flask server
+
+The trained artifacts are loaded once at startup and reused for every prediction request:
+
+```python flaskserver.py
+from flask import Flask, request, jsonify
+from sklearn.feature_extraction.text import TfidfVectorizer
+import joblib
+
+app = Flask(__name__)
+
+model      = joblib.load('your_model.pkl')
+vectorizer = joblib.load('your_vectorizer.pkl')
+```
+
+The server runs on **port 5000**:
+
+```python flaskserver.py
+if __name__ == '__main__':
+    app.run(host="0.0.0.0", debug=True, port=5000)
+```
+
+---
+
+## API reference
+
+### `POST /predict`
+
+Classifies a single email message.
+
+**Request body**
+
+```json
+{
+  "input_mail": "string"
+}
+```
+
+**Response body**
+
+```json
+{
+  "legitment": "Spam mail" | "Ham mail"
+}
+```
+
+**Prediction handler**
+
+```python flaskserver.py
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        data = request.get_json(force=True)
+        input_mail = data['input_mail']
+        input_data_features = vectorizer.transform([input_mail])
+
+        prediction = model.predict(input_data_features)[0]
+        if prediction == 1:
+            result = "Spam mail"
+        else:
+            result = "Ham mail"
+
+        return jsonify({'legitment': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+```
+
+| Prediction value | `legitment` response |
+|---|---|
+| `1` | `"Spam mail"` |
+| `0` | `"Ham mail"` |
+
+---
+
+## Example request and response
+
+<CodeGroup>
+
+```bash curl
+curl -X POST http://localhost:5000/predict \
+  -H "Content-Type: application/json" \
+  -d '{"input_mail": "URGENT: Your account requires immediate attention. Click now to verify your identity."}'
+```
+
+```python python
+import requests
+
+response = requests.post(
+    "http://localhost:5000/predict",
+    json={"input_mail": "URGENT: Your account requires immediate attention. Click now to verify your identity."}
+)
+print(response.json())
+```
+
+</CodeGroup>
+
+**Response (phishing email)**
+
+```json
+{
+  "legitment": "Spam mail"
+}
+```
+
+**Response (legitimate email)**
+
+```json
+{
+  "legitment": "Ham mail"
+}
+```
+
+<Warning>
+  The `/predict` endpoint returns a `500` JSON error object if `input_mail` is missing from the request body or if the model files are not found on disk.
+</Warning>

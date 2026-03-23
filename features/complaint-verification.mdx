@@ -1,0 +1,142 @@
+---
+title: "Complaint verification"
+description: "How police officers review submitted complaints and route verified cases to the bank or court."
+---
+
+## Overview
+
+After a victim submits a complaint, it enters the police verification queue. Police officers review each unverified complaint, examine the evidence and ML prediction, and record an approve or reject decision. The outcome of this step determines whether the case proceeds to the Bank role or the Court role.
+
+---
+
+## Unverified complaints queue
+
+The Police dashboard's default view fetches all complaints where neither `verifybypolice` nor `verifybypoliceemail` exist on the record:
+
+```javascript uploadform.js — police filter
+let data = await incidentformModel.find(
+  {
+    verifybypolice: { $exists: false },
+    verifybypoliceemail: { $exists: false },
+  },
+  { __v: 0, __id: 0 }
+);
+```
+
+Each complaint card shows the following information for the officer to review:
+
+<AccordionGroup>
+  <Accordion title="Basic complaint details">
+    - Application number (`applicationNo`)
+    - Victim email address
+    - Category (`category`) and subcategory (`subcategory`)
+    - Incident date (`date`)
+    - Delay in reporting (`delay`)
+  </Accordion>
+
+  <Accordion title="Bank details (when money was lost)">
+    Shown only when `bankbool` is `true`:
+
+    - Bank name, IFSC no., account no.
+    - Transaction ID, amount, reference no., transaction date
+  </Accordion>
+
+  <Accordion title="Email compromise details (when applicable)">
+    Shown only for the **Business Email Compromise/Email Takeover** subcategory:
+
+    - Email taken by (`emailtakenby`)
+    - Full email header (`header`)
+  </Accordion>
+
+  <Accordion title="Incident location and proof">
+    - Platform where the incident occurred (`incidentoccur`)
+    - Suspect identifier (`whereid`)
+    - Uploaded proof image
+  </Accordion>
+
+  <Accordion title="ML prediction">
+    The automated fraud detection result (`legitment`) is shown on each card for the officer to consider alongside the complaint details.
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Verification decision
+
+<Steps>
+  <Step title="Review the complaint">
+    Read through all complaint fields, examine the proof image, and note the ML prediction score.
+  </Step>
+
+  <Step title="Select a decision">
+    Under **Your Verify**, select one of the radio buttons:
+
+    - **Yes** — the complaint is legitimate and should proceed
+    - **No** — the complaint is rejected
+  </Step>
+
+  <Step title="Submit the decision">
+    Click **Submit**. The platform sends a `POST` request to `formupload/verifybypolice` with the payload:
+
+    ```json request body
+    {
+      "verifybypolice": "yes",
+      "applicationNo": "1234"
+    }
+    ```
+
+    The backend records the officer's email and decision on the incident:
+
+    ```javascript uploadform.js — police verification update
+    data["verifybypoliceemail"] = emaill;
+    data["verifybypolice"] = req.body.verifybypolice;
+    ```
+
+    After the update, the complaint is removed from the pending queue.
+  </Step>
+</Steps>
+
+---
+
+## Data model fields
+
+The following fields on the `incidentform` schema track police verification:
+
+| Field | Type | Description |
+|---|---|---|
+| `verifybypolice` | `String` | The officer's decision: `"yes"` or `"no"` |
+| `verifybypoliceemail` | `String` | Email address of the officer who submitted the decision |
+
+---
+
+## Case routing after verification
+
+The value of `bankbool` on the complaint determines where the case goes after police approve it:
+
+<CardGroup cols={2}>
+  <Card title="Bank route" icon="building-columns">
+    When `bankbool` is `true` (money was lost), the case appears in the Bank dashboard queue for account freeze or de-freeze processing.
+  </Card>
+  <Card title="Court route" icon="gavel">
+    When `bankbool` is `false`, the case bypasses the bank step and goes directly to the Court dashboard queue for judicial review.
+  </Card>
+</CardGroup>
+
+<Note>
+  Cases rejected by police (`verifybypolice: "no"`) do not route to any downstream role. They remain in the completed queue visible to the officer but are not forwarded to Bank or Court.
+</Note>
+
+---
+
+## Downstream verification fields
+
+Additional verification steps are tracked by the following fields set by the Bank and Court roles:
+
+| Field | Type | Description |
+|---|---|---|
+| `verifybybank` | `String` | Bank officer's decision |
+| `verifybybankemail` | `String` | Email of the bank officer who acted on the case |
+| `verifybycourt` | `String` | Court's judicial decision |
+| `verifybycourtemail` | `String` | Email of the court officer who recorded the decision |
+
+The Bank dashboard shows complaints where `verifybypolice` is `"yes"`, `bankbool` is `true`, and `verifybybank` does not yet exist. The Court dashboard shows complaints where `verifybypolice` is `"yes"` and `verifybycourt` does not yet exist.

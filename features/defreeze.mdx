@@ -1,0 +1,116 @@
+---
+title: "Account de-freeze"
+description: "How the bank de-freeze workflow operates for cybercrime cases where funds were frozen during investigation."
+---
+
+## Overview
+
+When a cybercrime complaint involves stolen funds (`bankbool: true`), the platform can facilitate an account de-freeze request after the case has been reviewed by both police and court. Bank officers receive these eligible cases in a dedicated de-freeze queue, review the court-approved details, and record a de-freeze decision. Victims can track the status of their de-freeze request from their dashboard.
+
+---
+
+## What account de-freezing means
+
+In the context of cybercrime investigation, a bank account linked to fraudulent transactions may be frozen to prevent further unauthorized withdrawals. Once the case has progressed through police verification and court approval, the bank can process a de-freeze to restore the victim's access to the account.
+
+---
+
+## Pre-conditions for de-freeze
+
+A complaint is eligible for de-freeze processing only when all of the following conditions are met:
+
+```javascript defreeze.js — eligibility filter
+let data = await incidentformModel.find(
+  {
+    verifybypolice: "yes",
+    verifybypoliceemail: { $exists: true },
+    bankbool: true,
+    verifybycourt: "yes",
+    verifybycourtemail: { $exists: true },
+  },
+  { __v: 0, __id: 0 }
+);
+```
+
+| Condition | Required value |
+|---|---|
+| Police verification | `verifybypolice: "yes"` |
+| Police email recorded | `verifybypoliceemail` exists |
+| Money was involved | `bankbool: true` |
+| Court approval | `verifybycourt: "yes"` |
+| Court email recorded | `verifybycourtemail` exists |
+
+<Warning>
+  Cases that have not been approved by both police and court, or where no money was reported lost, do not appear in the de-freeze queue.
+</Warning>
+
+---
+
+## De-freeze request workflow
+
+<Steps>
+  <Step title="Court approves the case">
+    A court officer records `verifybycourt: "yes"` on the complaint. This is the final pre-condition that makes the case eligible for de-freeze.
+  </Step>
+
+  <Step title="Bank officer reviews the de-freeze queue">
+    The bank dashboard's de-freeze view fetches all court-approved cases with `bankbool: true` that have not yet received a `defreezestatus`. The officer reviews the case details including complaint information, transaction amounts, and court decision.
+  </Step>
+
+  <Step title="Bank officer submits a de-freeze decision">
+    The officer selects a decision and submits it. The platform sends a `POST` request to the de-freeze endpoint:
+
+    ```json request body
+    {
+      "verifybypolice": "yes",
+      "applicationNo": "1234"
+    }
+    ```
+
+    The backend verifies that the request comes from a `Bank` role user, then writes the decision to the record:
+
+    ```javascript defreeze.js — bank de-freeze update
+    data["defreezestatus"] = req.body.verifybypolice;
+    data["defreezestatusbyemail"] = emaill;
+    ```
+  </Step>
+</Steps>
+
+---
+
+## De-freeze data model fields
+
+The following fields on the `incidentform` schema track the de-freeze workflow:
+
+| Field | Type | Description |
+|---|---|---|
+| `defreezestatus` | `String` | The bank officer's de-freeze decision |
+| `defreezestatusbyemail` | `String` | Email address of the bank officer who processed the request |
+
+---
+
+## How victims track de-freeze status
+
+Victims can monitor the de-freeze status from the **Status** view on their dashboard. The complaint card shows the current stage of the case:
+
+| Status shown | Meaning |
+|---|---|
+| `Waiting for bank` | Court has approved the case; de-freeze request is pending the bank's action |
+| `Defreeze Status: [value]` | The bank has recorded a `defreezestatus` decision |
+
+The completed de-freeze records are also accessible to bank officers from the bank dashboard's de-freeze history view, which fetches cases where both `defreezestatus` and `defreezestatusbyemail` exist:
+
+```javascript defreeze.js — completed de-freeze filter
+let data = await incidentformModel.find(
+  {
+    verifybypolice: "yes",
+    verifybypoliceemail: { $exists: true },
+    bankbool: true,
+    verifybycourt: "yes",
+    verifybycourtemail: { $exists: true },
+    defreezestatus: { $exists: true },
+    defreezestatusbyemail: { $exists: true },
+  },
+  { __v: 0, __id: 0 }
+);
+```

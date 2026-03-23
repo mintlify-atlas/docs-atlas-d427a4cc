@@ -1,0 +1,124 @@
+---
+title: "Court"
+description: "How court officials use the CyberCrew 1930 Helpline Platform to review verified case files and record judicial decisions on cybercrime complaints."
+---
+
+## Overview
+
+The **Court** role is for judicial officers who handle the final stage of the complaint lifecycle. After police have verified a complaint and, where applicable, the bank has processed the account freeze, the case becomes available to the court. Court officials review the full case file and record a judicial decision that either approves or rejects further action.
+
+---
+
+## Accessing the dashboard
+
+<Steps>
+  <Step title="Sign in">
+    Go to `/login`, enter your credentials, and click **Sign In**. The application detects your role as `Court` and renders the Court dashboard.
+  </Step>
+
+  <Step title="Choose a view">
+    The menubar offers two views:
+
+    - **Dashboard** — case files pending a court decision (default view)
+    - **Status** — all cases reviewed by the court
+  </Step>
+</Steps>
+
+---
+
+## Reviewing case files
+
+The default dashboard view fetches all cases that have completed the preceding verification stages and are pending a court decision (`GET formupload/downloadformsnotverify`). Each case card displays the full complaint record:
+
+<AccordionGroup>
+  <Accordion title="Basic complaint details">
+    - Application number (`applicationNo`)
+    - Victim email address
+    - Category (`category`) and subcategory (`subcategory`)
+    - Incident date (`date`)
+    - Delay in reporting (`delay`)
+  </Accordion>
+
+  <Accordion title="Bank details (when money was lost)">
+    Shown when `bankbool` is `true`:
+
+    - Bank name (`bankname`), IFSC no. (`ifsc`), account no. (`accno`)
+    - Transaction ID (`transactionID`), amount, reference no. (`refno`), transaction date
+  </Accordion>
+
+  <Accordion title="Email compromise details (when applicable)">
+    Shown only for the **Business Email Compromise/Email Takeover** subcategory:
+
+    - Email taken by (`emailtakenby`)
+    - Full email header (`header`)
+  </Accordion>
+
+  <Accordion title="Incident location and proof">
+    - Platform where the incident occurred (`incidentoccur`)
+    - Suspect identifier (`whereid`)
+    - Uploaded proof image — click to open the full-size version in a new tab
+  </Accordion>
+
+  <Accordion title="Prior verification decisions">
+    - **Our Prediction** (`legitment`) — the ML model's fraud score
+    - **Police Verification** (`verifybypolice`) — the police officer's decision
+    - **Bank Status** (`verifybybank`) — the bank's account freeze decision (shown if `verifybybank` is set)
+  </Accordion>
+</AccordionGroup>
+
+---
+
+## Recording a court decision
+
+Each case in the pending queue has a **Court Decision** control at the bottom of its card.
+
+<Steps>
+  <Step title="Review the case file">
+    Examine the full complaint record: the victim's reported details, proof image, ML fraud prediction, police verification, and bank freeze status.
+  </Step>
+
+  <Step title="Select a decision">
+    Under **Court Decision**, select:
+
+    - **Yes** — approve the case for further action (triggers the bank de-freeze workflow for cases where `bankbool` is `true`)
+    - **No** — reject the case
+
+    The radio input name is keyed to the application number: `verify_[applicationNo]`.
+  </Step>
+
+  <Step title="Submit the decision">
+    Click **Submit**. The platform sends `POST formupload/verifybypolice` with the payload:
+
+    ```json payload
+    {
+      "verifybypolice": "yes" | "no",
+      "applicationNo": "[applicationNo]"
+    }
+    ```
+
+    The case list refreshes after submission by re-fetching `GET formupload/downloadformsnotverify`.
+  </Step>
+</Steps>
+
+<Note>
+  A court decision of `yes` on a complaint with `bankbool = true` triggers the de-freeze request that appears in the Bank role's Defreeze queue. Victims can see the court decision reflected in their complaint status view as `verifybycourt`.
+</Note>
+
+---
+
+## Court's position in the complaint lifecycle
+
+The court acts as the final verification gate before de-freeze processing. The following table shows the full lifecycle and where the court fits:
+
+| Stage | Role responsible | Field set |
+|---|---|---|
+| Complaint filed | Victim | — |
+| ML fraud scoring | System | `legitment` |
+| Police verification | Police | `verifybypolice` |
+| Account freeze | Bank | `verifybybank` |
+| Judicial decision | **Court** | **`verifybycourt`** |
+| Account de-freeze | Bank | `defreezestatus` |
+
+<Tip>
+  Switch to the **Status** view to see all cases you have already decided, along with the downstream de-freeze status for cases you approved.
+</Tip>

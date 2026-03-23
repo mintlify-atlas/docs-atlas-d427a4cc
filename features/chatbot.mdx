@@ -1,0 +1,168 @@
+---
+title: "AI chatbot"
+description: "The guided complaint assistant available on all dashboards — how to use it and how it connects to the backend."
+---
+
+## Overview
+
+The platform includes an AI chatbot widget that is available on all user dashboards. The chatbot provides guided answers about the complaint filing process, account de-freeze steps, and the information required to submit a complaint. You can use pre-built suggestion buttons or type your own query.
+
+---
+
+## Opening and closing the chatbot
+
+The chatbot renders as a button in the corner of the dashboard. Click the button to open the chat window. Click the button again to close it and return to the previous state.
+
+```jsx Chatbot.jsx — toggle
+{state == false ? (
+  <button className="chat-bot-button" onClick={() => { setstate(!state) }}>
+    <img src={img} alt='Open Chatbot' />
+  </button>
+) : (
+  <div className="chat-bot-container">
+    ...
+  </div>
+)}
+```
+
+The `state` boolean controls visibility. It starts as `false` (button shown) and flips to `true` (chat window shown) on each click.
+
+---
+
+## Pre-built suggestion buttons
+
+When the chat window is open, three suggestion buttons appear below the message history:
+
+<CardGroup cols={1}>
+  <Card title="how to file a complaint" icon="file-pen">
+    Sends the query `"how to file a complaint"` to the backend and displays step-by-step guidance on contacting the bank, freezing the account, documenting the incident, filing a police report, and reporting to cybercrime authorities.
+  </Card>
+  <Card title="how to defreeze the money" icon="building-columns">
+    Sends the query `"how to defreeze the money"` to the backend and returns a step-by-step guide covering contacting the bank, providing account details, verifying your identity, requesting account freeze removal, and following bank procedures.
+  </Card>
+  <Card title="what kind of details need to be ready for complaint" icon="list-check">
+    Sends the query `"what kind of details need to be ready for complaint"` and returns a checklist of information to prepare: personal details, incident specifics, financial details, communication records, evidence files, device information, and witness information.
+  </Card>
+</CardGroup>
+
+Clicking a suggestion button sends its label text as the query and appends both the user message and the bot response to the message history.
+
+---
+
+## Typing a custom query
+
+You can also type a free-text query in the input field at the bottom of the chat window:
+
+<Steps>
+  <Step title="Type your message">
+    Click the **Type your message...** input field and enter your question.
+  </Step>
+  <Step title="Send">
+    Click **Send** or press Enter. The message is appended to the conversation history and sent to the backend.
+  </Step>
+  <Step title="Receive a response">
+    The bot response is appended below your message in the conversation history.
+  </Step>
+</Steps>
+
+<Note>
+  Empty messages are ignored. The send handler returns early if `inputValue.trim()` is an empty string.
+</Note>
+
+---
+
+## Backend endpoint
+
+All queries — both from suggestion buttons and the text input — are sent to the same endpoint:
+
+```http
+POST http://localhost:8383/api/postData
+```
+
+```json request body
+{
+  "query": "how to file a complaint"
+}
+```
+
+The endpoint does not require authentication (it is registered before the `tokenverification` middleware in `index.js`).
+
+```javascript index.js — route registration
+app.post('/api/postData', (req, res) => { ... })
+app.use(tokenverification)
+app.use('/formupload', route_formupload)
+```
+
+The response is a JSON object with a `message` field containing the bot's answer:
+
+```json response
+{
+  "message": "1. Contact the Bank Immediately: ..."
+}
+```
+
+The frontend reads `result.message` and stores it as the bot response text.
+
+---
+
+## Response patterns
+
+The backend matches queries against three patterns:
+
+<AccordionGroup>
+  <Accordion title="Complaint guidance">
+    Triggered when the query matches `'complaint'`. Returns a numbered list covering:
+
+    1. Contact the bank immediately
+    2. Freeze the account
+    3. Document the incident
+    4. File a police report
+    5. Report to cybercrime authorities
+    6. Collaborate with cybersecurity professionals
+    7. Cooperate with financial institutions
+    8. Insurance claims
+    9. Legal assistance
+  </Accordion>
+
+  <Accordion title="De-freeze steps">
+    Triggered when the query matches `'defreeze'`. Returns a numbered list covering:
+
+    1. Contact your bank
+    2. Provide necessary information
+    3. Verify your identity
+    4. Request account freeze removal
+    5. Follow bank procedures
+    6. Report to law enforcement
+    7. Monitor account activity
+    8. Check for legal assistance
+  </Accordion>
+
+  <Accordion title="Required details checklist">
+    Triggered when the query matches `'details'`. Returns a checklist of information to prepare:
+
+    1. Personal details (name, contact info)
+    2. Incident specifics (date, time, description)
+    3. Financial details (amount, transactions)
+    4. Communication details (email, phone numbers)
+    5. Evidence (screenshots, URLs, files)
+    6. Device information (type, IP addresses)
+    7. Witness information (if applicable)
+    8. Steps taken to mitigate
+    9. Previous complaint/reference number (if any)
+  </Accordion>
+</AccordionGroup>
+
+Queries that do not match any pattern fall through to a default response that returns the general complaint guidance list.
+
+---
+
+## Integration details
+
+| Detail | Value |
+|---|---|
+| Express server port | `8383` |
+| Base URL | `http://localhost:8383` |
+| Endpoint | `POST /api/postData` |
+| Request field | `query` (string) |
+| Response field | `message` (string) |
+| Authentication | None required |

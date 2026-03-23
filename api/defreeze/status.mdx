@@ -1,0 +1,243 @@
+---
+title: 'List de-freeze cases'
+description: 'Retrieve pending and processed de-freeze cases for bank officers.'
+---
+
+<Note>
+  Both endpoints require authentication. Pass the JWT token returned by [Log in](/api/auth/login) in the `token` request header. The caller's `usertype` must be `"Bank"`.
+</Note>
+
+## Endpoints
+
+Two read-only endpoints are available:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/formupload/downloadformsnotverifyfordefreeze` | List cases pending a bank de-freeze decision |
+| `GET` | `/formupload/downloadformsfordefreeze` | List all de-freeze cases that have already been processed |
+
+---
+
+## GET /formupload/downloadformsnotverifyfordefreeze
+
+Returns all complaint documents that are ready for a bank de-freeze decision — that is, verified by police, bank, and court, but not yet processed by the bank for de-freeze.
+
+### Pre-conditions
+
+A complaint appears in this list when **all** of the following fields are set on its document:
+
+- `verifybypolice: "yes"`
+- `verifybypoliceemail` exists
+- `bankbool: true`
+- `verifybycourt: "yes"`
+- `verifybycourtemail` exists
+
+Complaints that already have `defreezestatus` or `defreezestatusbyemail` set are **not** filtered out by this endpoint. Use the processed list endpoint below to see those.
+
+### Header parameters
+
+<ParamField header="token" type="string" required>
+  A valid JWT session token obtained from the [login endpoint](/api/auth/login). The `usertype` encoded in the token must be `"Bank"`.
+</ParamField>
+
+### Response
+
+Returns HTTP `200`. The response body is an array of complaint documents, or `false` when the caller is not a bank officer or a server error occurs.
+
+<ResponseField name="(root)" type="array">
+  Array of complaint documents matching the pending de-freeze criteria. Returns `false` on error or unauthorised access.
+
+  <Expandable title="Complaint document fields">
+    <ResponseField name="applicationNo" type="number">
+      The unique 4-digit identifier of the complaint.
+    </ResponseField>
+
+    <ResponseField name="email" type="string">
+      Email address of the victim who filed the complaint.
+    </ResponseField>
+
+    <ResponseField name="subcategory" type="string">
+      The specific fraud subcategory of the complaint.
+    </ResponseField>
+
+    <ResponseField name="bankbool" type="boolean">
+      Always `true` for complaints in this list — indicates a bank transaction is involved.
+    </ResponseField>
+
+    <ResponseField name="bank" type="object">
+      Bank transaction details, including `amount` and `name`.
+    </ResponseField>
+
+    <ResponseField name="date" type="date">
+      The date the incident occurred.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      The victim's narrative of the incident.
+    </ResponseField>
+
+    <ResponseField name="verifybypolice" type="string">
+      Police verification decision. Always `"yes"` for complaints in this list.
+    </ResponseField>
+
+    <ResponseField name="verifybypoliceemail" type="string">
+      Email address of the police officer who verified the complaint.
+    </ResponseField>
+
+    <ResponseField name="verifybycourt" type="string">
+      Court verification decision. Always `"yes"` for complaints in this list.
+    </ResponseField>
+
+    <ResponseField name="verifybycourtemail" type="string">
+      Email address of the court officer who verified the complaint.
+    </ResponseField>
+
+    <ResponseField name="legitment" type="string">
+      ML legitimacy assessment assigned when the complaint was first submitted.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url https://your-api-host/formupload/downloadformsnotverifyfordefreeze \
+  --header 'token: <bank-jwt-token>'
+```
+
+### Success response
+
+```json
+[
+  {
+    "applicationNo": 4821,
+    "email": "victim@example.com",
+    "subcategory": "UPI-Related Frauds",
+    "bankbool": true,
+    "bank": { "amount": 15000, "name": "State Bank of India" },
+    "date": "2024-03-14T00:00:00.000Z",
+    "description": "Received a fraudulent call from someone claiming to be from SBI...",
+    "verifybypolice": "yes",
+    "verifybypoliceemail": "officer@police.gov.in",
+    "verifybycourt": "yes",
+    "verifybycourtemail": "judge@court.gov.in",
+    "legitment": "true"
+  }
+]
+```
+
+---
+
+## GET /formupload/downloadformsfordefreeze
+
+Returns all complaint documents that have already been processed by a bank officer for de-freeze — that is, they meet the same verification criteria as above **and** already have `defreezestatus` and `defreezestatusbyemail` set.
+
+### Header parameters
+
+<ParamField header="token" type="string" required>
+  A valid JWT session token obtained from the [login endpoint](/api/auth/login). The `usertype` encoded in the token must be `"Bank"`.
+</ParamField>
+
+### Response
+
+Returns HTTP `200`. The response body is an array of processed complaint documents, or `false` when the caller is not a bank officer or a server error occurs.
+
+<ResponseField name="(root)" type="array">
+  Array of processed de-freeze complaint documents. Returns `false` on error or unauthorised access.
+
+  <Expandable title="Complaint document fields">
+    <ResponseField name="applicationNo" type="number">
+      The unique 4-digit identifier of the complaint.
+    </ResponseField>
+
+    <ResponseField name="email" type="string">
+      Email address of the victim who filed the complaint.
+    </ResponseField>
+
+    <ResponseField name="subcategory" type="string">
+      The specific fraud subcategory of the complaint.
+    </ResponseField>
+
+    <ResponseField name="bankbool" type="boolean">
+      Always `true` for complaints in this list.
+    </ResponseField>
+
+    <ResponseField name="bank" type="object">
+      Bank transaction details, including `amount` and `name`.
+    </ResponseField>
+
+    <ResponseField name="date" type="date">
+      The date the incident occurred.
+    </ResponseField>
+
+    <ResponseField name="description" type="string">
+      The victim's narrative of the incident.
+    </ResponseField>
+
+    <ResponseField name="verifybypolice" type="string">
+      Police verification decision. Always `"yes"` for complaints in this list.
+    </ResponseField>
+
+    <ResponseField name="verifybypoliceemail" type="string">
+      Email address of the police officer who verified the complaint.
+    </ResponseField>
+
+    <ResponseField name="verifybycourt" type="string">
+      Court verification decision. Always `"yes"` for complaints in this list.
+    </ResponseField>
+
+    <ResponseField name="verifybycourtemail" type="string">
+      Email address of the court officer who verified the complaint.
+    </ResponseField>
+
+    <ResponseField name="defreezestatus" type="string">
+      The bank officer's de-freeze decision, as recorded by the [process de-freeze request](/api/defreeze/request) endpoint.
+    </ResponseField>
+
+    <ResponseField name="defreezestatusbyemail" type="string">
+      Email address of the bank officer who processed the de-freeze request.
+    </ResponseField>
+
+    <ResponseField name="legitment" type="string">
+      ML legitimacy assessment assigned when the complaint was first submitted.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+### Example
+
+```bash cURL
+curl --request GET \
+  --url https://your-api-host/formupload/downloadformsfordefreeze \
+  --header 'token: <bank-jwt-token>'
+```
+
+### Success response
+
+```json
+[
+  {
+    "applicationNo": 4821,
+    "email": "victim@example.com",
+    "subcategory": "UPI-Related Frauds",
+    "bankbool": true,
+    "bank": { "amount": 15000, "name": "State Bank of India" },
+    "date": "2024-03-14T00:00:00.000Z",
+    "description": "Received a fraudulent call from someone claiming to be from SBI...",
+    "verifybypolice": "yes",
+    "verifybypoliceemail": "officer@police.gov.in",
+    "verifybycourt": "yes",
+    "verifybycourtemail": "judge@court.gov.in",
+    "defreezestatus": "approved",
+    "defreezestatusbyemail": "bankmanager@sbi.co.in",
+    "legitment": "true"
+  }
+]
+```
+
+### Failure — unauthorised role or server error
+
+```json
+false
+```

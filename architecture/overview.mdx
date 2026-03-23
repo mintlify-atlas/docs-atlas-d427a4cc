@@ -1,0 +1,169 @@
+---
+title: "Architecture overview"
+description: "How the CyberCrew 1930 Helpline Platform is structured — its services, request flow, authentication model, and data schemas."
+---
+
+The platform is composed of four independent services that work together to handle the full complaint lifecycle.
+
+<CardGroup cols={2}>
+  <Card title="React SPA" icon="browser">
+    Single-page application served by **Vite** on the default dev port. Handles all UI rendering, routing, and communication with the Express API.
+  </Card>
+  <Card title="Express API" icon="server">
+    Node.js/Express backend running on **port 8383**. Handles authentication, complaint submission, verification, and de-freeze workflows.
+  </Card>
+  <Card title="Flask ML server" icon="flask">
+    Python Flask service running on **port 5000**. Exposes `/predict` endpoints for phishing email classification and fraud legitimacy scoring.
+  </Card>
+  <Card title="MongoDB" icon="database">
+    Document database accessed via Mongoose. Stores user accounts (`login` collection) and all complaint records (`incidentform` collection).
+  </Card>
+</CardGroup>
+
+## System diagram
+
+```text
+┌─────────────────────────────────────────────────────────┐
+│                        Browser                          │
+│                  (React SPA via Vite)                   │
+└───────────────────────┬─────────────────────────────────┘
+                        │  HTTP / JSON
+                        ▼
+┌─────────────────────────────────────────────────────────┐
+│              Express API  :8383                         │
+│                                                         │
+│  POST /login          POST /signup       POST /signout  │
+│  POST /findusertype   POST /valid                       │
+│  POST /api/postData   (chatbot stub)                    │
+│                                                         │
+│  ── tokenverification middleware ──────────────────     │
+│                                                         │
+│  POST /formupload/upload                                │
+│  POST /formupload/verifybypolice                        │
+│  POST /formupload/defreezebybank                        │
+│  GET  /formupload/downloadforms                         │
+│  GET  /formupload/downloadformsnotverify                │
+│  GET  /formupload/image                                 │
+└───────────┬─────────────────────────┬───────────────────┘
+            │                         │
+            ▼                         ▼
+┌───────────────────┐     ┌───────────────────────────────┐
+│   MongoDB         │     │   Flask ML server  :5000      │
+│                   │     │                               │
+│  login            │     │  POST /predict                │
+│  incidentform     │     │  (phishing + legitimacy)      │
+└───────────────────┘     └───────────────────────────────┘
+```
+
+<Note>
+  The Flask ML server is called as a side service — the Express backend forwards complaint data to it for scoring but does not depend on it being available to serve other routes.
+</Note>
+
+## Request flow
+
+<Steps>
+  <Step title="Browser sends a request">
+    The React SPA makes an HTTP request to the Express API at `http://localhost:8383`. The JWT token stored in a browser cookie is attached as a `token` header on every API call.
+  </Step>
+  <Step title="Express processes public routes">
+    Routes mounted before the `tokenverification` middleware — `/login`, `/signup`, `/signout`, `/valid`, `/findusertype`, `/email`, and `/api/postData` — are accessible without a valid token.
+  </Step>
+  <Step title="tokenverification middleware runs">
+    For all `/formupload/*` routes, the `tokenverification` middleware calls `valid(req.headers.token)`. If the JWT is invalid or absent, the server responds with `401`. If valid, the request continues.
+  </Step>
+  <Step title="Route handler queries MongoDB">
+    The matching route handler calls the relevant Mongoose controller, which reads from or writes to the `login` or `incidentform` collection in MongoDB.
+  </Step>
+  <Step title="ML server called for predictions (optional)">
+    When a complaint is submitted or scored, the Express server forwards the payload to the Flask ML server at `http://localhost:5000/predict`. The response (`legitment: "true"` or `"false"`) is stored back in the complaint document.
+  </Step>
+</Steps>
+
+## Authentication flow
+
+The platform uses **JWT (JSON Web Tokens)** for stateless authentication.
+
+1. On successful `POST /login`, the Express server signs a JWT containing the user's email and `usertype`, then sets it as a cookie in the response.
+2. The React SPA reads the cookie via `js-cookie` and attaches the raw token value to every subsequent API request as the `token` request header.
+3. The `tokenverification` middleware on the Express side calls `valid(token)`, which verifies the JWT signature and expiry. A verified token allows the request through; an invalid token returns `401 "wrong token"`.
+4. On `POST /signout`, the cookie is cleared.
+
+<Note>
+  The `/valid` and `/findusertype` endpoints accept the token as a request header (not a cookie). The frontend uses these endpoints to check session state on page load.
+</Note>
+
+## Role-based routing
+
+`App.jsx` determines which dashboard to render after login by calling `POST /findusertype` with the current token. The server decodes the JWT and returns the stored `usertype` string. The client then conditionally renders one of four dashboard components:
+
+| `usertype` value | Dashboard component        |
+|------------------|----------------------------|
+| `Victim`         | `<Dashboard_victim />`     |
+| `Police`         | `<Dashboard_police />`     |
+| `Bank`           | `<Dashboard_bank />`       |
+| `Court`          | `<Dashboard_court />`      |
+
+If the user is not authenticated (`cookie` is absent), all routes redirect to `/login`. If authenticated, the root path `/` redirects to `/dashboard`.
+
+## Data models
+
+### loginSchema
+
+Stored in the `login` MongoDB collection. Represents a user account.
+
+| Field      | Type     | Description                                              |
+|------------|----------|----------------------------------------------------------|
+| `email`    | `String` | User's email address, used as the login identifier.      |
+| `password` | `String` | bcrypt-hashed password.                                  |
+| `usertype` | `String` | Role assigned at signup: `Victim`, `Police`, `Bank`, or `Court`. Embedded in the JWT on login. |
+
+### incidentformSchema
+
+Stored in the `incidentform` MongoDB collection. Represents a single cybercrime complaint and tracks its full lifecycle.
+
+| Field                   | Type      | Description                                                    |
+|-------------------------|-----------|----------------------------------------------------------------|
+| `applicationNo`         | `Number`  | Unique application reference number.                           |
+| `email`                 | `String`  | Email of the victim who filed the complaint.                   |
+| `type`                  | `String`  | High-level complaint type.                                     |
+| `category`              | `String`  | Fraud category (e.g., phishing, lottery fraud).                |
+| `subcategory`           | `String`  | More specific sub-type used by ML models for scoring.          |
+| `bankbool`              | `Boolean` | Whether bank account details are included.                     |
+| `bank`                  | `Object`  | Bank details object (amount, account info) when `bankbool` is true. |
+| `date`                  | `Date`    | Date the incident occurred.                                    |
+| `delay`                 | `Boolean` | Whether the complaint was filed with a delay.                  |
+| `incidentoccur`         | `String`  | Platform or medium where the incident occurred.                |
+| `incidentoccurID`       | `String`  | Identifier (e.g., URL, phone number) associated with the incident. |
+| `description`           | `String`  | Full description of the incident.                              |
+| `header`                | `String`  | Summary header for the complaint.                              |
+| `emailtakenby`          | `String`  | Email of the officer who took the case.                        |
+| `whereid`               | `String`  | Location or jurisdiction identifier.                           |
+| `proof`                 | `String`  | Base64-encoded or file-path reference to uploaded evidence.    |
+| `legitment`             | `String`  | ML legitimacy score result: `"true"` or `"false"`.             |
+| `verifybypolice`        | `String`  | Police verification status.                                    |
+| `verifybypoliceemail`   | `String`  | Email of the verifying police officer.                         |
+| `verifybybank`          | `String`  | Bank verification status.                                      |
+| `verifybybankemail`     | `String`  | Email of the bank officer who processed the case.              |
+| `verifybycourt`         | `String`  | Court verification status.                                     |
+| `verifybycourtemail`    | `String`  | Email of the court officer.                                    |
+| `defreezestatus`        | `String`  | De-freeze request status.                                      |
+| `defreezestatusbyemail` | `String`  | Email of the bank officer who actioned the de-freeze.          |
+
+## Middleware
+
+The `tokenverification` middleware is registered in `server/index.js` **after** the public login routes and before the `/formupload` router:
+
+```javascript server/index.js
+app.use('/', route_login)           // public: login, signup, signout, valid, findusertype
+app.post('/api/postData', ...)      // public: chatbot stub
+
+app.use(tokenverification)          // JWT guard — all routes below require a valid token
+
+app.use('/formupload', route_formupload)
+```
+
+The middleware reads `req.headers.token`, calls `valid()` (which verifies the JWT), and either calls `next()` or returns `401`.
+
+<Warning>
+  The `tokenverification` middleware applies to every route registered after it in `index.js`. Any new route added below `app.use(tokenverification)` will automatically require a valid JWT.
+</Warning>

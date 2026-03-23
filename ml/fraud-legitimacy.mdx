@@ -1,0 +1,289 @@
+---
+title: "Fraud legitimacy scorer"
+description: "XGBoost pipeline that scores a full complaint record to determine whether the reported fraud is likely legitimate."
+---
+
+The fraud legitimacy scorer analyzes structured complaint data — including the fraud type, amount, and description — and returns a binary legitimacy prediction. It is served by `flask2.py` and called by the Express backend as part of the complaint submission flow.
+
+---
+
+## Model type
+
+| Property | Value |
+|---|---|
+| Algorithm | XGBoost (`XGBClassifier`, `random_state=42`) |
+| Pipeline | scikit-learn `Pipeline` with `ColumnTransformer` preprocessing |
+| Serialized artifact | `fraud_detection_pipeline.pkl` |
+| Library | XGBoost, scikit-learn, joblib |
+
+---
+
+## Training data
+
+The model is trained on `./Datasets/Final_dataset.csv`. The target column is `Legitimate` (binary: `1` = legitimate, `0` = fraudulent).
+
+Features are split into numerical and categorical groups:
+
+```python Legitimate_model.py
+categorical_features = ["Complainant_Name", "Fraud_Type", "Description", "IP_Address"]
+numerical_features   = ["Amount"]
+```
+
+The `Amount` column is cleaned of currency symbols before processing:
+
+```python Legitimate_model.py
+data['Amount'] = data['Amount'].replace('[\$,]', '', regex=True).astype(float)
+```
+
+---
+
+## Preprocessing pipeline
+
+The model uses a `ColumnTransformer` to apply separate preprocessing to numerical and categorical features:
+
+```python Legitimate_model.py
+numerical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='mean')),
+    ('scaler',  StandardScaler())
+])
+
+categorical_transformer = Pipeline(steps=[
+    ('imputer', SimpleImputer(strategy='most_frequent')),
+    ('onehot',  OneHotEncoder(handle_unknown='ignore'))
+])
+
+preprocessor = ColumnTransformer(
+    transformers=[
+        ('num', numerical_transformer, numerical_features),
+        ('cat', categorical_transformer, categorical_features)
+    ])
+```
+
+The full pipeline bundles preprocessing and the XGBoost classifier:
+
+```python Legitimate_model.py
+model = XGBClassifier(random_state=42)
+
+pipeline = Pipeline(steps=[
+    ('preprocessor', preprocessor),
+    ('classifier',   model)
+])
+```
+
+---
+
+## Training process
+
+<Steps>
+  <Step title="Split the data">
+    The dataset is split 80/20 with a fixed seed:
+
+    ```python Legitimate_model.py
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42
+    )
+    ```
+  </Step>
+  <Step title="Fit the pipeline">
+    The full preprocessing + classification pipeline is trained in one call:
+
+    ```python Legitimate_model.py
+    pipeline.fit(X_train, y_train)
+    ```
+  </Step>
+  <Step title="Evaluate">
+    Accuracy and a full classification report are printed after training:
+
+    ```python Legitimate_model.py
+    y_pred   = pipeline.predict(X_test)
+    accuracy = accuracy_score(y_test, y_pred)
+    report   = classification_report(y_test, y_pred)
+
+    print(f"Model Accuracy: {accuracy:.2f}")
+    print("\nClassification Report:\n", report)
+    ```
+  </Step>
+  <Step title="Persist the pipeline">
+    The full pipeline (preprocessor + classifier) is saved to disk:
+
+    ```python Legitimate_model.py
+    joblib.dump(pipeline, 'fraud_detection_pipeline.pkl')
+    ```
+  </Step>
+</Steps>
+
+---
+
+## `predict_legitimacy` function
+
+The `Legitimate_model` module exposes a `predict_legitimacy` function that `flask2.py` imports directly:
+
+```python Legitimate_model.py
+def preprocess_input(input_data):
+    input_df = pd.DataFrame([input_data])
+    input_df['Amount'] = input_df['Amount'].replace('[\$,]', '', regex=True).astype(float)
+    return input_df
+
+def predict_legitimacy(input_data):
+    input_df = preprocess_input(input_data)
+    prediction = pipeline.predict(input_df)
+    return prediction[0]
+```
+
+The function accepts a dictionary with the complaint fields, converts it to a single-row DataFrame, applies the same `Amount` cleaning used during training, and returns the raw integer prediction (`0` or `1`).
+
+---
+
+## Flask server
+
+The pipeline is loaded once at startup:
+
+```python flask2.py
+from flask import Flask, jsonify, request
+import joblib
+import Legitimate_model
+
+app = Flask(__name__)
+pipeline = joblib.load('fraud_detection_pipeline.pkl')
+```
+
+---
+
+## API reference
+
+### `POST /predict`
+
+Scores the legitimacy of a complaint record.
+
+**Request body**
+
+The request body matches the complaint form fields. The `bankbool` boolean controls whether the actual bank amount or `"0"` is passed to the model.
+
+```json
+{
+  "applicationNo": "string | number",
+  "email": "string",
+  "date": "string",
+  "subcategory": "string",
+  "description": "string",
+  "bankbool": true,
+  "bank": {
+    "amount": "string"
+  }
+}
+```
+
+**Response body**
+
+```json
+{
+  "legitment": "true" | "false"
+}
+```
+
+**Two input modes**
+
+The handler builds the model input dictionary differently depending on whether bank details are present:
+
+```python flask2.py
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        input_data = request.get_json()
+
+        if input_data.get("bankbool") == True:
+            inputt = {
+                'Complaint_ID':      input_data.get('applicationNo'),
+                'Complainant_Name':  input_data.get('email'),
+                'Date_Time':         input_data.get('date'),
+                'Fraud_Type':        input_data.get('subcategory'),
+                'Amount':            input_data.get('bank').get('amount'),
+                'Description':       input_data.get('description'),
+                'IP_Address':        '192.168.1.10'
+            }
+        else:
+            inputt = {
+                'Complaint_ID':      input_data.get('applicationNo'),
+                'Complainant_Name':  input_data.get('email'),
+                'Date_Time':         input_data.get('date'),
+                'Fraud_Type':        input_data.get('subcategory'),
+                'Amount':            '0',
+                'Description':       input_data.get('description'),
+                'IP_Address':        '192.168.1.10'
+            }
+
+        prediction = Legitimate_model.predict_legitimacy(inputt)
+        if prediction == 1:
+            result = "true"
+        else:
+            result = "false"
+
+        return jsonify({'legitment': result})
+
+    except Exception as e:
+        return jsonify({'error': str(e)})
+```
+
+| `bankbool` | `Amount` field sent to model |
+|---|---|
+| `true` | Value from `bank.amount` in the request |
+| `false` or absent | `"0"` |
+
+| Prediction value | `legitment` response |
+|---|---|
+| `1` | `"true"` |
+| `0` | `"false"` |
+
+---
+
+## Example request and response
+
+<Tabs>
+  <Tab title="With bank amount">
+
+    ```json request
+    {
+      "applicationNo": 284,
+      "email": "victim@example.com",
+      "date": "2026-01-04 12:00:00",
+      "subcategory": "UPI",
+      "description": "Unauthorized transfer from my UPI account.",
+      "bankbool": true,
+      "bank": {
+        "amount": "500"
+      }
+    }
+    ```
+
+    ```json response
+    {
+      "legitment": "true"
+    }
+    ```
+
+  </Tab>
+  <Tab title="Without bank amount">
+
+    ```json request
+    {
+      "applicationNo": 285,
+      "email": "victim@example.com",
+      "date": "2026-01-05 09:30:00",
+      "subcategory": "Phishing",
+      "description": "I clicked a suspicious link in an email.",
+      "bankbool": false
+    }
+    ```
+
+    ```json response
+    {
+      "legitment": "false"
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+<Warning>
+  When `bankbool` is `true`, the request body must include a `bank` object with an `amount` field. If `bank` is absent, the handler will raise an `AttributeError` and return an error response.
+</Warning>

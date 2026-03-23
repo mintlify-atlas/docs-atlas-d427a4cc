@@ -1,0 +1,207 @@
+---
+title: 'Predict fraud legitimacy'
+description: 'Predict whether a cybercrime complaint is legitimate using an XGBoost classification pipeline.'
+---
+
+## Request
+
+**Method:** `POST`  
+**Base URL:** `http://localhost:5001`  
+**Path:** `/predict`
+
+<Note>
+  This endpoint is served by the internal Flask ML server (`flask2.py`). It runs on the default Flask development port (`5001` when `debug=True` and port is not specified, or `5000` if nothing else is bound — verify against your deployment). It is called from within the platform backend and is not exposed publicly.
+</Note>
+
+<Tip>
+  `flask2.py` calls `app.run(debug=True)` without specifying a port, so Flask defaults to port `5000`. If `flaskserver.py` (phishing detection) is also running on port `5000`, you must configure one of the two servers to use a different port before deploying both together.
+</Tip>
+
+### Body parameters
+
+<ParamField body="applicationNo" type="number" required>
+  The unique complaint identifier. Passed to the model as `Complaint_ID`.
+</ParamField>
+
+<ParamField body="email" type="string" required>
+  The email address of the complainant. Passed to the model as `Complainant_Name`.
+</ParamField>
+
+<ParamField body="date" type="string" required>
+  The date and time of the incident. Passed to the model as `Date_Time`. Recommended format: `"YYYY-MM-DD HH:MM:SS"`.
+</ParamField>
+
+<ParamField body="subcategory" type="string" required>
+  The fraud subcategory of the complaint (e.g. `"UPI"`, `"E-Wallet Related Fraud"`). Passed to the model as `Fraud_Type`.
+</ParamField>
+
+<ParamField body="bank" type="object">
+  Bank transaction details. Required when `bankbool` is `true`.
+
+  <Expandable title="properties">
+    <ParamField body="bank.amount" type="string">
+      The fraudulent transaction amount. Passed to the model as `Amount`. May include currency symbols — the model strips `$` and `,` characters before converting to a float. Only used when `bankbool` is `true`.
+    </ParamField>
+  </Expandable>
+</ParamField>
+
+<ParamField body="description" type="string" required>
+  The victim's description of the incident. Passed to the model as `Description`.
+</ParamField>
+
+<ParamField body="bankbool" type="boolean" required>
+  Whether the complaint involves a bank transaction.
+
+  - `true` — the `bank.amount` field is read and passed to the model as `Amount`
+  - `false` — `Amount` defaults to `"0"`
+</ParamField>
+
+## How it works
+
+The server loads a pre-trained XGBoost pipeline (`fraud_detection_pipeline.pkl`) at startup. The pipeline includes preprocessing steps for both numerical (`Amount`) and categorical (`Complainant_Name`, `Fraud_Type`, `Description`, `IP_Address`) features.
+
+On each request the server:
+
+1. Reads `bankbool` to determine whether to use the actual transaction amount or default to `"0"`.
+2. Builds an internal feature dictionary and passes it to `Legitimate_model.predict_legitimacy()`.
+3. Maps the binary prediction to a string result: `1` → `"true"`, `0` → `"false"`.
+
+<Note>
+  The `IP_Address` field is hardcoded to `"192.168.1.10"` in the current implementation and is not taken from the request body.
+</Note>
+
+### Two prediction modes
+
+<CardGroup cols={2}>
+  <Card title="With bank amount" icon="building-columns">
+    When `bankbool` is `true`, the actual `bank.amount` value is passed to the model. Use this mode for complaints involving financial transactions.
+  </Card>
+  <Card title="Without bank amount" icon="file-lines">
+    When `bankbool` is `false`, `Amount` is set to `"0"`. Use this mode for complaints that do not involve a direct financial transaction.
+  </Card>
+</CardGroup>
+
+## Response
+
+All responses return HTTP `200` with a JSON body.
+
+<ResponseField name="legitment" type="string">
+  The legitimacy prediction.
+
+  - `"true"` — the model predicts the complaint is legitimate (prediction = 1)
+  - `"false"` — the model predicts the complaint is not legitimate (prediction = 0)
+</ResponseField>
+
+### Error response
+
+<ResponseField name="error" type="string">
+  A string describing the exception that was raised. Returned with HTTP `200` (the error is not surfaced as a non-2xx status by this endpoint).
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL — with bank amount
+curl --request POST \
+  --url http://localhost:5001/predict \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "applicationNo": 284,
+    "email": "divya.verma@example.com",
+    "date": "2026-01-04 12:00:00",
+    "subcategory": "UPI",
+    "bank": { "amount": "500" },
+    "description": "I attempted to transfer funds via my e-wallet but the transaction failed and the amount was debited from my account.",
+    "bankbool": true
+  }'
+```
+
+```python Python — with bank amount
+import requests
+
+response = requests.post(
+    'http://localhost:5001/predict',
+    json={
+        'applicationNo': 284,
+        'email': 'divya.verma@example.com',
+        'date': '2026-01-04 12:00:00',
+        'subcategory': 'UPI',
+        'bank': {'amount': '500'},
+        'description': 'I attempted to transfer funds via my e-wallet but the transaction failed and the amount was debited from my account.',
+        'bankbool': True,
+    }
+)
+
+print(response.json())
+# {'legitment': 'true'}
+```
+
+</CodeGroup>
+
+<CodeGroup>
+
+```bash cURL — without bank amount
+curl --request POST \
+  --url http://localhost:5001/predict \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "applicationNo": 285,
+    "email": "raju.sharma@example.com",
+    "date": "2026-02-10 09:30:00",
+    "subcategory": "Online Job Fraud",
+    "description": "I was promised a job abroad and paid a registration fee, but the company was fake.",
+    "bankbool": false
+  }'
+```
+
+```python Python — without bank amount
+import requests
+
+response = requests.post(
+    'http://localhost:5001/predict',
+    json={
+        'applicationNo': 285,
+        'email': 'raju.sharma@example.com',
+        'date': '2026-02-10 09:30:00',
+        'subcategory': 'Online Job Fraud',
+        'description': 'I was promised a job abroad and paid a registration fee, but the company was fake.',
+        'bankbool': False,
+    }
+)
+
+print(response.json())
+# {'legitment': 'true'}
+```
+
+</CodeGroup>
+
+### Legitimate complaint response
+
+```json
+{ "legitment": "true" }
+```
+
+### Non-legitimate complaint response
+
+```json
+{ "legitment": "false" }
+```
+
+### Error response
+
+```json
+{ "error": "'NoneType' object has no attribute 'get'" }
+```
+
+## Model details
+
+| Property | Value |
+|---|---|
+| Algorithm | XGBoost classifier |
+| Pipeline file | `fraud_detection_pipeline.pkl` |
+| Numerical features | `Amount` |
+| Categorical features | `Complainant_Name`, `Fraud_Type`, `Description`, `IP_Address` |
+| Numerical preprocessing | Mean imputation + standard scaling |
+| Categorical preprocessing | Most-frequent imputation + one-hot encoding |
+| Server port | `5000` (default Flask, no port specified in `flask2.py`) |

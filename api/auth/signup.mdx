@@ -1,0 +1,110 @@
+---
+title: 'Sign up'
+description: 'Register a new user account on the CyberCrew 1930 Helpline Platform.'
+---
+
+<Note>
+  Authentication is not required for this endpoint. Any client can register a new account.
+</Note>
+
+## Request
+
+**Method:** `POST`  
+**Path:** `/signup`
+
+### Body parameters
+
+<ParamField body="email" type="string" required>
+  The email address for the new account. Must be unique — registration fails if an account with this email already exists.
+</ParamField>
+
+<ParamField body="password" type="string" required>
+  The account password. Must match `confirmpassword`.
+</ParamField>
+
+<ParamField body="confirmpassword" type="string" required>
+  Confirmation of the password. Must be identical to `password`; registration fails if the two values differ.
+</ParamField>
+
+<ParamField body="usertype" type="string" required>
+  The role assigned to this account. Must be one of: `Victim`, `Police`, `Bank`, `Court`.
+</ParamField>
+
+## Response
+
+All responses return HTTP `200` with a JSON body.
+
+<ResponseField name="okk" type="boolean" required>
+  `true` when the account was created successfully, `false` on any failure.
+</ResponseField>
+
+<ResponseField name="message" type="string" required>
+  A human-readable description of the result.
+
+  | Value | Condition |
+  |---|---|
+  | `"Signed up Succesfully"` | Account created. |
+  | `"There is existing email is there."` | An account with that email already exists. |
+  | `"password does not match"` | `password` and `confirmpassword` differ. |
+</ResponseField>
+
+## Examples
+
+<CodeGroup>
+
+```bash cURL
+curl --request POST \
+  --url https://your-api-host/signup \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "email": "victim@example.com",
+    "password": "securepassword",
+    "confirmpassword": "securepassword",
+    "usertype": "Victim"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch('https://your-api-host/signup', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    email: 'victim@example.com',
+    password: 'securepassword',
+    confirmpassword: 'securepassword',
+    usertype: 'Victim',
+  }),
+});
+
+const data = await response.json();
+console.log(data);
+```
+
+</CodeGroup>
+
+### Success response
+
+```json
+{
+  "okk": true,
+  "message": "Signed up Succesfully"
+}
+```
+
+### Failure — email already registered
+
+```json
+{
+  "okk": false,
+  "message": "There is existing email is there."
+}
+```
+
+### Failure — password mismatch
+
+```json
+{
+  "okk": false,
+  "message": "password does not match"
+}
+```

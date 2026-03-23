@@ -1,0 +1,92 @@
+---
+title: "ML models overview"
+description: "How two production ML services automate fraud detection and integrate with the CyberCrew 1930 complaint workflow."
+---
+
+The platform runs two independent machine learning services that analyze every complaint automatically after submission. Their combined output is stored in the `legitment` field on the incident record and surfaced to both victims and police officers.
+
+<CardGroup cols={2}>
+  <Card title="Phishing email detector" icon="envelope-open" href="/ml/phishing-detection">
+    Classifies email content as spam/phishing or legitimate using TF-IDF vectorization and Logistic Regression. Served by `flaskserver.py` on port 5000.
+  </Card>
+  <Card title="Fraud legitimacy scorer" icon="magnifying-glass-chart" href="/ml/fraud-legitimacy">
+    Scores the full complaint record using an XGBoost pipeline to determine whether the reported fraud is likely legitimate. Served by `flask2.py`.
+  </Card>
+</CardGroup>
+
+---
+
+## Purpose
+
+The two ML services provide automated first-pass fraud detection so that police officers have a legitimacy signal before they manually review a complaint. Neither model makes a final determination — their output is advisory and displayed alongside the complaint data.
+
+---
+
+## Integration with the backend
+
+Immediately after the Express backend receives a complaint submission, it calls the Flask prediction server before writing the record to MongoDB:
+
+```javascript uploadform.js
+let get = await fetch("http://127.0.0.1:5000/predict", {
+  method: "POST",
+  body: JSON.stringify(data),
+  headers: headersList,
+});
+const responseData = await get.json();
+data = { ...data, ...responseData };
+await incidentformModel.create(data);
+```
+
+The ML server's JSON response is merged into the complaint data object before `incidentformModel.create` is called. This means the `legitment` value is always present on the document when it is first saved.
+
+<Note>
+  The Flask ML server is a side service. If it is unavailable, the backend will surface an error from the fetch call rather than silently saving a record without a legitimacy score.
+</Note>
+
+---
+
+## The `legitment` field
+
+The `legitment` field is a `String` on the `incidentform` Mongoose schema:
+
+```javascript schema.js
+const incidentformSchema = new mongoose.Schema({
+  ...
+  legitment: String,
+  ...
+});
+```
+
+The value written to this field depends on which ML service responded:
+
+| Source model | Possible values |
+|---|---|
+| Phishing email detector | `"Spam mail"` or `"Ham mail"` |
+| Fraud legitimacy scorer | `"true"` or `"false"` |
+
+The field is displayed as **Our Prediction** on complaint cards in both the victim status view and the police dashboard.
+
+---
+
+## Training datasets
+
+| Model | Dataset file | Label column | Classes |
+|---|---|---|---|
+| Phishing email detector | `phishing_data.csv` | `Category` | `ham` / `spam` |
+| Fraud legitimacy scorer | `Final_dataset.csv` | `Legitimate` | `0` (fraudulent) / `1` (legitimate) |
+
+The phishing dataset contains raw email messages in a `Message` column. Labels are encoded as integers before training: `ham → 0`, `spam → 1`.
+
+The fraud legitimacy dataset contains structured complaint fields — including `Fraud_Type`, `Amount`, and `Description` — along with a binary `Legitimate` target.
+
+---
+
+## Model summary
+
+| Property | Phishing detector | Fraud legitimacy scorer |
+|---|---|---|
+| Algorithm | Logistic Regression | XGBoost (`XGBClassifier`) |
+| Feature engineering | TF-IDF vectorization | Numeric scaling + one-hot encoding via `ColumnTransformer` |
+| Serialized artifact | `your_model.pkl`, `your_vectorizer.pkl` | `fraud_detection_pipeline.pkl` |
+| Flask server | `flaskserver.py` (port 5000) | `flask2.py` |
+| Endpoint | `POST /predict` | `POST /predict` |
