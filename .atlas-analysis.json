@@ -1,0 +1,116 @@
+{
+  "projectType": "saas",
+  "projectName": "CyberCrew 1930 Helpline Platform",
+  "projectDescription": "A full-stack cybercrime complaint management platform built for the Rajasthan Police 1930 Helpline, enabling victims to file online financial fraud complaints, police to verify cases, banks to process account de-freeze requests, courts to review verdicts, and ML models to detect phishing and fraud legitimacy.",
+  "theme": "linden",
+  "primaryColor": "#1A3C6E",
+  "lightColor": "#E8EEF7",
+  "darkColor": "#0F2447",
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": ["introduction", "quickstart"]
+          },
+          {
+            "group": "Architecture",
+            "pages": ["architecture/overview", "architecture/tech-stack"]
+          },
+          {
+            "group": "User Roles",
+            "pages": [
+              "roles/victim",
+              "roles/police",
+              "roles/bank",
+              "roles/court"
+            ]
+          },
+          {
+            "group": "Core Features",
+            "pages": [
+              "features/complaint-filing",
+              "features/complaint-verification",
+              "features/defreeze",
+              "features/chatbot",
+              "features/fraud-detection"
+            ]
+          },
+          {
+            "group": "ML Models",
+            "pages": [
+              "ml/overview",
+              "ml/phishing-detection",
+              "ml/fraud-legitimacy"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Authentication",
+            "pages": [
+              "api/auth/signup",
+              "api/auth/login",
+              "api/auth/signout"
+            ]
+          },
+          {
+            "group": "Complaint Management",
+            "pages": [
+              "api/complaints/upload",
+              "api/complaints/download",
+              "api/complaints/verify"
+            ]
+          },
+          {
+            "group": "De-freeze",
+            "pages": [
+              "api/defreeze/request",
+              "api/defreeze/status"
+            ]
+          },
+          {
+            "group": "ML Endpoints",
+            "pages": [
+              "api/ml/predict-phishing",
+              "api/ml/predict-fraud"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Role-based dashboards for Victims, Police, Banks, and Courts",
+    "Online financial fraud complaint filing with proof upload",
+    "ML-powered phishing email detection (Logistic Regression + TF-IDF)",
+    "ML-powered fraud legitimacy scoring (XGBoost pipeline)",
+    "Police complaint verification workflow",
+    "Bank account de-freeze request and approval flow",
+    "AI chatbot for guided complaint filing support",
+    "JWT-based authentication with role-based access control",
+    "MongoDB data storage for complaints and user accounts"
+  ],
+  "publicApiSurface": [
+    "POST /signup — register a new user (victim, police, bank, or court)",
+    "POST /login — authenticate and receive a session token",
+    "POST /signout — invalidate the current session",
+    "POST /valid — validate an existing JWT token",
+    "POST /findusertype — determine the role of the authenticated user",
+    "POST /formupload/upload — submit a new cybercrime complaint with proof",
+    "GET /formupload/downloadforms — list all complaints for the authenticated user",
+    "GET /formupload/downloadformsnotverify — list unverified complaints (police)",
+    "POST /formupload/verifybypolice — mark a complaint as verified by police",
+    "POST /formupload/defreezebybank — process a de-freeze request by bank",
+    "GET /formupload/downloadformsnotverifyfordefreeze — list pending de-freeze requests",
+    "GET /formupload/downloadformsfordefreeze — list all de-freeze requests",
+    "POST /api/postData — chatbot query endpoint",
+    "POST /predict (Flask :5000) — phishing email classification",
+    "POST /predict (Flask2) — fraud legitimacy prediction"
+  ]
+}
